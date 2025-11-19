@@ -25,6 +25,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
   const [newTextYoutubeUrl, setNewTextYoutubeUrl] = useState('');
   const [newTextContent, setNewTextContent] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
+  const [newTextFolderId, setNewTextFolderId] = useState('default');
+  const [editingTextFolderId, setEditingTextFolderId] = useState('default');
 
   useEffect(() => {
     loadData();
@@ -44,12 +46,14 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
 
   const handleCreateText = async () => {
     if (newItemName.trim() && newTextContent.trim()) {
-      const folderId = selectedFolderId === 'all' ? 'default' : selectedFolderId;
+      // Use selected folder if valid, otherwise default
+      const folderId = newTextFolderId || (selectedFolderId === 'all' ? 'default' : selectedFolderId);
       await createText(newItemName.trim(), newTextContent.trim(), folderId, newTextArtist.trim(), newTextYoutubeUrl.trim(), '', '');
       setNewItemName('');
       setNewTextArtist('');
       setNewTextYoutubeUrl('');
       setNewTextContent('');
+      setNewTextFolderId('default');
       setShowNewTextModal(false);
       await loadData();
     }
@@ -96,6 +100,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
     setNewTextArtist(text.artist || '');
     setNewTextYoutubeUrl(text.youtubeUrl || '');
     setNewTextContent(text.content);
+    setEditingTextFolderId(text.folderId || 'default');
     setShowEditModal(true);
   };
 
@@ -105,7 +110,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
         title: newItemName,
         artist: newTextArtist,
         youtubeUrl: newTextYoutubeUrl,
-        content: newTextContent
+        content: newTextContent,
+        folderId: editingTextFolderId
       });
       setEditingItem(null);
       setNewItemName('');
@@ -125,59 +131,57 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
   };
 
   return (
-    <div className={`min-h-screen transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}
-         style={{
-           fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif'
-         }}>
+    <div
+      className="min-h-screen transition-colors"
+      style={{
+        fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif',
+        backgroundColor: isDarkMode ? '#111827' : '#f9fafb'
+      }}>
       {/* Header */}
-      <div className={`border-b-[1.5px] px-6 py-5 flex items-center justify-between transition-colors ${
-        isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
-      }`}>
+      <div className={`border-b-custom px-6 py-5 flex items-center justify-between transition-colors ${isDarkMode ? 'border-blue-600 bg-gray-800' : 'border-black bg-white'
+        }`}>
         <div>
-          <h1 className={`text-2xl font-light tracking-tight transition-colors ${
-            isDarkMode ? 'text-white' : 'text-black'
-          }`}>
-            Text Memorisation
+          <h1 className={`text-2xl font-bold uppercase tracking-tight transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+            }`}>
+            THE REPETOIRE
           </h1>
-          <p className={`text-xs mt-1 transition-colors ${
-            isDarkMode ? 'text-gray-400' : 'text-gray-500'
-          }`}>Practice and learn</p>
         </div>
         <div className="flex items-center gap-3">
           <button
             onClick={onToggleDarkMode}
-            className={`p-2.5 rounded-xl border-[1.5px] transition-colors ${
-              isDarkMode
-                ? 'border-gray-600 hover:bg-gray-700 text-gray-300'
-                : 'border-gray-300 hover:bg-gray-100 text-gray-600'
-            }`}
+            className={`p-2.5 rounded-xl border-[1.5px] transition-colors ${isDarkMode
+              ? 'border-gray-600 hover:bg-gray-700 text-gray-300'
+              : 'border-gray-300 hover:bg-gray-100 text-gray-600'
+              }`}
             title={isDarkMode ? 'Light mode' : 'Dark mode'}
           >
             {isDarkMode ? (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="5"/>
-                <line x1="12" y1="1" x2="12" y2="3"/>
-                <line x1="12" y1="21" x2="12" y2="23"/>
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-                <line x1="1" y1="12" x2="3" y2="12"/>
-                <line x1="21" y1="12" x2="23" y2="12"/>
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                <circle cx="12" cy="12" r="5" />
+                <line x1="12" y1="1" x2="12" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="23" />
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                <line x1="1" y1="12" x2="3" y2="12" />
+                <line x1="21" y1="12" x2="23" y2="12" />
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
               </svg>
             ) : (
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
               </svg>
             )}
           </button>
           <button
-            onClick={() => setShowNewTextModal(true)}
-            className={`px-5 py-2.5 text-sm font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] ${
-              isDarkMode
-                ? 'bg-white text-black border-white hover:bg-gray-100'
-                : 'bg-black text-white border-black hover:bg-gray-800'
-            }`}
+            onClick={() => {
+              setNewTextFolderId(selectedFolderId === 'all' ? 'default' : selectedFolderId);
+              setShowNewTextModal(true);
+            }}
+            className={`px-5 py-2.5 text-sm font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] ${isDarkMode
+              ? 'bg-white text-black border-white hover:bg-gray-100'
+              : 'bg-black text-white border-black hover:bg-gray-800'
+              }`}
           >
             New Text
           </button>
@@ -187,18 +191,16 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
       {/* Main Layout with Sidebar */}
       <div className="flex">
         {/* Sidebar */}
-        <div className={`w-64 border-r-[1.5px] min-h-screen transition-colors ${
-          isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
-        }`}>
+        <div className={`w-64 border-r-[1.5px] min-h-screen transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
+          }`}>
           <div className="p-4">
             <div className="mb-4">
               <button
                 onClick={() => setShowNewFolderModal(true)}
-                className={`w-full px-4 py-2.5 text-sm font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] ${
-                  isDarkMode
-                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                }`}
+                className={`w-full px-4 py-2.5 text-sm font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] border-black ${isDarkMode
+                  ? 'text-blue-400 hover:bg-gray-700'
+                  : 'text-blue-600 hover:bg-gray-50'
+                  }`}
               >
                 New Folder
               </button>
@@ -207,23 +209,21 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
             {/* All Texts */}
             <div
               onClick={() => setSelectedFolderId('all')}
-              className={`px-4 py-3 rounded-xl cursor-pointer transition-all mb-2 border-[1.5px] ${
-                selectedFolderId === 'all'
-                  ? isDarkMode
-                    ? 'bg-white text-black border-white font-bold'
-                    : 'bg-black text-white border-black font-bold'
-                  : isDarkMode
-                  ? 'border-gray-700 text-gray-300 hover:border-gray-600 hover:bg-gray-700'
+              className={`px-4 py-3 rounded-xl cursor-pointer transition-all mb-2 border-[1.5px] ${selectedFolderId === 'all'
+                ? isDarkMode
+                  ? 'bg-blue-600 text-white border-blue-600 font-bold'
+                  : 'bg-black text-white border-black font-bold'
+                : isDarkMode
+                  ? 'border-gray-700 text-blue-400 hover:border-gray-600 hover:bg-gray-700'
                   : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-              }`}
+                }`}
             >
               <div className="flex items-center justify-between">
                 <span className="text-sm">All Texts</span>
-                <span className={`text-xs tabular-nums ${
-                  selectedFolderId === 'all'
-                    ? ''
-                    : isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                }`}>
+                <span className={`text-xs tabular-nums ${selectedFolderId === 'all'
+                  ? ''
+                  : isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                  }`}>
                   {allTexts.length}
                 </span>
               </div>
@@ -234,15 +234,14 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
               {folders.map(folder => (
                 <div
                   key={folder.id}
-                  className={`px-4 py-3 rounded-xl transition-all border-[1.5px] group ${
-                    selectedFolderId === folder.id
-                      ? isDarkMode
-                        ? 'bg-white text-black border-white font-bold'
-                        : 'bg-black text-white border-black font-bold'
-                      : isDarkMode
-                      ? 'border-gray-700 text-gray-300 hover:border-gray-600 hover:bg-gray-700'
+                  className={`px-4 py-3 rounded-xl transition-all border-[1.5px] group ${selectedFolderId === folder.id
+                    ? isDarkMode
+                      ? 'bg-blue-600 text-white border-blue-600 font-bold'
+                      : 'bg-black text-white border-black font-bold'
+                    : isDarkMode
+                      ? 'border-gray-700 text-blue-400 hover:border-gray-600 hover:bg-gray-700'
                       : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center justify-between">
                     <span
@@ -252,11 +251,10 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                       {folder.name}
                     </span>
                     <div className="flex items-center gap-1">
-                      <span className={`text-xs tabular-nums mr-2 ${
-                        selectedFolderId === folder.id
-                          ? ''
-                          : isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                      }`}>
+                      <span className={`text-xs tabular-nums mr-2 ${selectedFolderId === folder.id
+                        ? ''
+                        : isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                        }`}>
                         {allTexts.filter(t => t.folderId === folder.id).length}
                       </span>
                       {folder.id !== 'default' && (
@@ -266,14 +264,13 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                               e.stopPropagation();
                               handleEditFolder(folder);
                             }}
-                            className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
-                              isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
-                            }`}
+                            className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                              }`}
                             title="Edit folder"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
                             </svg>
                           </button>
                           <button
@@ -281,13 +278,12 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                               e.stopPropagation();
                               handleDeleteFolder(folder.id);
                             }}
-                            className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
-                              isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
-                            }`}
+                            className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                              }`}
                             title="Delete folder"
                           >
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                             </svg>
                           </button>
                         </>
@@ -302,115 +298,112 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
 
         {/* Content */}
         <div className="flex-1 p-6">
-        {texts.length === 0 ? (
-          <div className="text-center py-24">
-            <svg className={`mx-auto h-16 w-16 mb-6 transition-colors ${
-              isDarkMode ? 'text-gray-600' : 'text-gray-400'
-            }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-            </svg>
-            <p className={`text-lg font-light transition-colors ${
-              isDarkMode ? 'text-gray-400' : 'text-gray-500'
-            }`}>No texts yet</p>
-            <p className={`text-sm mt-2 transition-colors ${
-              isDarkMode ? 'text-gray-500' : 'text-gray-400'
-            }`}>Click "New Text" to get started</p>
-          </div>
-        ) : (
-          <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {texts.map(text => (
-                <div
-                  key={text.id}
-                  className={`border-[1.5px] rounded-xl p-5 transition-all group hover:shadow-lg ${
-                    isDarkMode
-                      ? 'bg-gray-800 border-gray-700 hover:border-gray-500'
-                      : 'bg-white border-gray-300 hover:border-black'
-                  }`}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
-                      <h3 className={`font-semibold text-base truncate transition-colors ${
-                        isDarkMode ? 'text-white' : 'text-black'
-                      }`}>
-                        {text.title}
-                      </h3>
-                      {text.artist && (
-                        <p className={`text-sm font-light truncate mt-1 transition-colors ${
-                          isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>
-                          {text.artist}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
-                      <button
-                        onClick={() => handleEditText(text)}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-                        }`}
-                        title="Edit"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => handleDeleteText(text.id)}
-                        className={`p-1.5 rounded-lg transition-colors ${
-                          isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
-                        }`}
-                        title="Delete"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                        </svg>
-                      </button>
-                    </div>
-                  </div>
-                  <p className={`text-sm font-light mb-4 line-clamp-3 transition-colors ${
-                    isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                  }`}>
-                    {text.content.substring(0, 120)}...
-                  </p>
-                  <button
-                    onClick={() => onPracticeText(text)}
-                    className={`w-full px-4 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] ${
-                      isDarkMode
-                        ? 'bg-white text-black border-white hover:bg-gray-100'
-                        : 'bg-black text-white border-black hover:bg-gray-800'
-                    }`}
-                  >
-                    Practice
-                  </button>
-                </div>
-              ))}
+          {texts.length === 0 ? (
+            <div className="text-center py-24">
+              <svg className={`mx-auto h-16 w-16 mb-6 transition-colors ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
+                }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className={`text-lg font-light transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                }`}>No texts yet</p>
+              <p className={`text-sm mt-2 transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                }`}>Click "New Text" to get started</p>
             </div>
-          </div>
-        )}
+          ) : (
+            <div className="max-w-7xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {texts.map(text => (
+                  <div
+                    key={text.id}
+                    style={{
+                      borderWidth: '3px',
+                      borderStyle: 'solid',
+                      borderColor: isDarkMode ? '#3b82f6' : '#000000'
+                    }}
+                    className={`rounded-xl p-4 transition-all group hover:shadow-lg ${isDarkMode
+                      ? 'bg-gray-800'
+                      : 'bg-white'
+                      }`}
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`font-semibold text-base truncate transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                          }`}>
+                          {text.title}
+                        </h3>
+                        {text.artist && (
+                          <p className={`text-sm font-light truncate mt-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>
+                            {text.artist}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                        <button
+                          onClick={() => handleEditText(text)}
+                          className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                            }`}
+                          title="Edit"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => handleDeleteText(text.id)}
+                          className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                            }`}
+                          title="Delete"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                    <p className={`text-sm font-light mb-4 line-clamp-3 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}>
+                      {text.content.substring(0, 120)}...
+                    </p>
+                    <button
+                      onClick={() => onPracticeText(text)}
+                      style={{
+                        borderWidth: '1.5px',
+                        borderStyle: 'solid',
+                        borderColor: isDarkMode ? '#ffffff' : '#000000'
+                      }}
+                      className={`w-full px-4 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl ${isDarkMode
+                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                        : 'bg-black text-white hover:bg-gray-800'
+                        }`}
+                    >
+                      Practice
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       {/* New Folder Modal */}
       {showNewFolderModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${
-            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-          }`}>
-            <h3 className={`text-xl font-semibold mb-5 transition-colors ${
-              isDarkMode ? 'text-white' : 'text-black'
-            }`}>New Folder</h3>
+          <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+            }`}>
+            <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+              }`}>New Folder</h3>
             <input
               type="text"
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
               placeholder="Folder name"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${
-                isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-              }`}
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                }`}
               autoFocus
             />
             <div className="flex gap-3 justify-end">
@@ -419,22 +412,20 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                   setShowNewFolderModal(false);
                   setNewFolderName('');
                 }}
-                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${
-                  isDarkMode
-                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                }`}
+                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
+                  ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                  : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                  }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateFolder}
                 disabled={!newFolderName.trim()}
-                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isDarkMode
-                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                }`}
+                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
+                  ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
+                  : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
+                  }`}
               >
                 Create
               </button>
@@ -446,22 +437,19 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
       {/* Edit Folder Modal */}
       {showEditFolderModal && editingFolder && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${
-            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-          }`}>
-            <h3 className={`text-xl font-semibold mb-5 transition-colors ${
-              isDarkMode ? 'text-white' : 'text-black'
-            }`}>Edit Folder</h3>
+          <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+            }`}>
+            <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+              }`}>Edit Folder</h3>
             <input
               type="text"
               value={newFolderName}
               onChange={(e) => setNewFolderName(e.target.value)}
               placeholder="Folder name"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${
-                isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-              }`}
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                }`}
               autoFocus
             />
             <div className="flex gap-3 justify-end">
@@ -471,22 +459,20 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                   setEditingFolder(null);
                   setNewFolderName('');
                 }}
-                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${
-                  isDarkMode
-                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                }`}
+                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
+                  ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                  : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                  }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveFolder}
                 disabled={!newFolderName.trim()}
-                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isDarkMode
-                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                }`}
+                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
+                  ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
+                  : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
+                  }`}
               >
                 Save
               </button>
@@ -498,22 +484,20 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
       {/* New Text Modal */}
       {showNewTextModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className={`rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${
-            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-          }`}>
-            <h3 className={`text-xl font-semibold mb-5 transition-colors ${
-              isDarkMode ? 'text-white' : 'text-black'
-            }`}>New Text</h3>
+          <div
+            className={`rounded-3xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+              }`}>
+            <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+              }`}>New Text</h3>
             <input
               type="text"
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
               placeholder="Title"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${
-                isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-              }`}
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                }`}
               autoFocus
             />
             <input
@@ -521,34 +505,45 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
               value={newTextArtist}
               onChange={(e) => setNewTextArtist(e.target.value)}
               placeholder="Artist (optional)"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${
-                isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-              }`}
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                }`}
             />
             <input
               type="url"
               value={newTextYoutubeUrl}
               onChange={(e) => setNewTextYoutubeUrl(e.target.value)}
               placeholder="YouTube URL (optional)"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${
-                isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-              }`}
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                }`}
             />
             <textarea
               value={newTextContent}
               onChange={(e) => setNewTextContent(e.target.value)}
               placeholder="Paste your text here..."
-              className={`w-full h-64 px-4 py-3 border-[1.5px] rounded-xl focus:outline-none resize-none mb-5 transition-colors ${
-                isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-              }`}
-              style={{ fontFamily: 'monospace' }}
+              className={`w-full h-64 px-4 py-3 border-[1.5px] rounded-xl focus:outline-none resize-none mb-4 font-mono transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                }`}
             />
+            <select
+              value={newTextFolderId}
+              onChange={(e) => setNewTextFolderId(e.target.value)}
+              className={`w-full px-4 py-3 border-[5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black focus:border-black'
+                }`}
+            >
+              <option value="default">Uncategorized</option>
+              {folders.filter(f => f.id !== 'default').map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.name}
+                </option>
+              ))}
+            </select>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => {
@@ -558,22 +553,20 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                   setNewTextYoutubeUrl('');
                   setNewTextContent('');
                 }}
-                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${
-                  isDarkMode
-                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                }`}
+                className={`px-5 py-2.5 rounded-xl border-[1.5px] text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
+                  ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                  : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                  }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateText}
                 disabled={!newItemName.trim() || !newTextContent.trim()}
-                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isDarkMode
-                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                }`}
+                className={`px-5 py-2.5 rounded-xl border-[1.5px] text-sm font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
+                  ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
+                  : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
+                  }`}
               >
                 Create
               </button>
@@ -585,12 +578,10 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
       {/* Edit Modal */}
       {showEditModal && editingItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className={`rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${
-            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-          }`}>
-            <h3 className={`text-xl font-semibold mb-5 transition-colors ${
-              isDarkMode ? 'text-white' : 'text-black'
+          <div className={`rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
             }`}>
+            <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+              }`}>
               Edit Text
             </h3>
             <input
@@ -598,11 +589,10 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
               value={newItemName}
               onChange={(e) => setNewItemName(e.target.value)}
               placeholder="Title"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${
-                isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-              }`}
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                }`}
               autoFocus
             />
             <input
@@ -610,34 +600,46 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
               value={newTextArtist}
               onChange={(e) => setNewTextArtist(e.target.value)}
               placeholder="Artist (optional)"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${
-                isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-              }`}
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                }`}
             />
             <input
               type="url"
               value={newTextYoutubeUrl}
               onChange={(e) => setNewTextYoutubeUrl(e.target.value)}
               placeholder="YouTube URL (optional)"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${
-                isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-              }`}
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                }`}
             />
             <textarea
               value={newTextContent}
               onChange={(e) => setNewTextContent(e.target.value)}
               placeholder="Text content"
-              className={`w-full h-64 px-4 py-3 border-[1.5px] rounded-xl focus:outline-none resize-none mb-5 transition-colors ${
-                isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-              }`}
+              className={`w-full h-64 px-4 py-3 border-[1.5px] rounded-xl focus:outline-none resize-none mb-5 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                }`}
               style={{ fontFamily: 'monospace' }}
             />
+            <select
+              value={editingTextFolderId}
+              onChange={(e) => setEditingTextFolderId(e.target.value)}
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
+                ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-400'
+                : 'border-gray-300 bg-white text-black focus:border-black'
+                }`}
+            >
+              <option value="default">Uncategorized</option>
+              {folders.filter(f => f.id !== 'default').map((folder) => (
+                <option key={folder.id} value={folder.id}>
+                  {folder.name}
+                </option>
+              ))}
+            </select>
             <div className="flex gap-3 justify-end">
               <button
                 onClick={() => {
@@ -648,22 +650,20 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                   setNewTextYoutubeUrl('');
                   setNewTextContent('');
                 }}
-                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${
-                  isDarkMode
-                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                }`}
+                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
+                  ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                  : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                  }`}
               >
                 Cancel
               </button>
               <button
                 onClick={handleSaveEdit}
                 disabled={!newItemName.trim() || !newTextContent.trim()}
-                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${
-                  isDarkMode
-                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                }`}
+                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
+                  ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
+                  : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
+                  }`}
               >
                 Save
               </button>
