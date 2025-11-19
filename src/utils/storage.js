@@ -1,115 +1,261 @@
-// Storage utility for managing texts and folders in localStorage
-
-const STORAGE_KEY = 'text-memorisation-data';
-
-// Initialize storage structure
-const getStorage = () => {
-  const data = localStorage.getItem(STORAGE_KEY);
-  if (!data) {
-    const initialData = {
-      folders: [
-        { id: 'default', name: 'Uncategorized', createdAt: Date.now() }
-      ],
-      texts: []
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(initialData));
-    return initialData;
-  }
-  return JSON.parse(data);
-};
-
-const saveStorage = (data) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-};
+// Storage utility for managing texts and folders in Supabase
+import { supabase } from './supabase';
 
 // Folder operations
-export const getFolders = () => {
-  const { folders } = getStorage();
-  return folders;
+export const getFolders = async () => {
+  const { data, error } = await supabase
+    .from('folders')
+    .select('*')
+    .order('created_at', { ascending: true });
+
+  if (error) {
+    console.error('Error fetching folders:', error);
+    return [];
+  }
+
+  // Convert snake_case to camelCase for consistency
+  return data.map(folder => ({
+    id: folder.id,
+    name: folder.name,
+    createdAt: folder.created_at,
+    updatedAt: folder.updated_at
+  }));
 };
 
-export const createFolder = (name) => {
-  const data = getStorage();
+export const createFolder = async (name) => {
   const newFolder = {
     id: `folder-${Date.now()}`,
     name,
-    createdAt: Date.now()
+    created_at: Date.now()
   };
-  data.folders.push(newFolder);
-  saveStorage(data);
-  return newFolder;
-};
 
-export const updateFolder = (id, name) => {
-  const data = getStorage();
-  const folder = data.folders.find(f => f.id === id);
-  if (folder) {
-    folder.name = name;
-    saveStorage(data);
+  const { data, error } = await supabase
+    .from('folders')
+    .insert([newFolder])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating folder:', error);
+    throw error;
   }
-  return folder;
+
+  return {
+    id: data.id,
+    name: data.name,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at
+  };
 };
 
-export const deleteFolder = (id) => {
+export const updateFolder = async (id, name) => {
+  const { data, error } = await supabase
+    .from('folders')
+    .update({ name, updated_at: Date.now() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating folder:', error);
+    throw error;
+  }
+
+  return {
+    id: data.id,
+    name: data.name,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at
+  };
+};
+
+export const deleteFolder = async (id) => {
   if (id === 'default') {
     throw new Error('Cannot delete default folder');
   }
-  const data = getStorage();
+
   // Move texts from deleted folder to default
-  data.texts.forEach(text => {
-    if (text.folderId === id) {
-      text.folderId = 'default';
-    }
-  });
-  data.folders = data.folders.filter(f => f.id !== id);
-  saveStorage(data);
+  await supabase
+    .from('texts')
+    .update({ folder_id: 'default' })
+    .eq('folder_id', id);
+
+  const { error } = await supabase
+    .from('folders')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting folder:', error);
+    throw error;
+  }
 };
 
 // Text operations
-export const getTexts = (folderId = null) => {
-  const { texts } = getStorage();
+export const getTexts = async (folderId = null) => {
+  let query = supabase
+    .from('texts')
+    .select('*')
+    .order('created_at', { ascending: false });
+
   if (folderId) {
-    return texts.filter(t => t.folderId === folderId);
+    query = query.eq('folder_id', folderId);
   }
-  return texts;
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Error fetching texts:', error);
+    return [];
+  }
+
+  // Convert snake_case to camelCase for consistency
+  return data.map(text => ({
+    id: text.id,
+    title: text.title,
+    artist: text.artist,
+    content: text.content,
+    youtubeUrl: text.youtube_url,
+    strummingPattern: text.strumming_pattern,
+    imageData: text.image_data,
+    musicXML: text.music_xml,
+    folderId: text.folder_id,
+    createdAt: text.created_at,
+    updatedAt: text.updated_at
+  }));
 };
 
-export const getText = (id) => {
-  const { texts } = getStorage();
-  return texts.find(t => t.id === id);
+export const getText = async (id) => {
+  const { data, error } = await supabase
+    .from('texts')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    console.error('Error fetching text:', error);
+    return null;
+  }
+
+  return {
+    id: data.id,
+    title: data.title,
+    artist: data.artist,
+    content: data.content,
+    youtubeUrl: data.youtube_url,
+    strummingPattern: data.strumming_pattern,
+    imageData: data.image_data,
+    musicXML: data.music_xml,
+    folderId: data.folder_id,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at
+  };
 };
 
-export const createText = (title, content, folderId = 'default') => {
-  const data = getStorage();
+export const createText = async (
+  title,
+  content,
+  folderId = 'default',
+  artist = '',
+  youtubeUrl = '',
+  strummingPattern = '',
+  imageData = '',
+  musicXML = ''
+) => {
   const newText = {
     id: `text-${Date.now()}`,
     title,
+    artist,
     content,
-    folderId,
-    createdAt: Date.now(),
-    updatedAt: Date.now()
+    youtube_url: youtubeUrl,
+    strumming_pattern: strummingPattern,
+    image_data: imageData,
+    music_xml: musicXML,
+    folder_id: folderId,
+    created_at: Date.now(),
+    updated_at: Date.now()
   };
-  data.texts.push(newText);
-  saveStorage(data);
-  return newText;
-};
 
-export const updateText = (id, updates) => {
-  const data = getStorage();
-  const text = data.texts.find(t => t.id === id);
-  if (text) {
-    Object.assign(text, updates, { updatedAt: Date.now() });
-    saveStorage(data);
+  const { data, error } = await supabase
+    .from('texts')
+    .insert([newText])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating text:', error);
+    throw error;
   }
-  return text;
+
+  return {
+    id: data.id,
+    title: data.title,
+    artist: data.artist,
+    content: data.content,
+    youtubeUrl: data.youtube_url,
+    strummingPattern: data.strumming_pattern,
+    imageData: data.image_data,
+    musicXML: data.music_xml,
+    folderId: data.folder_id,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at
+  };
 };
 
-export const deleteText = (id) => {
-  const data = getStorage();
-  data.texts = data.texts.filter(t => t.id !== id);
-  saveStorage(data);
+export const updateText = async (id, updates) => {
+  // Convert camelCase to snake_case for Supabase
+  const dbUpdates = {
+    updated_at: Date.now()
+  };
+
+  if (updates.title !== undefined) dbUpdates.title = updates.title;
+  if (updates.artist !== undefined) dbUpdates.artist = updates.artist;
+  if (updates.content !== undefined) dbUpdates.content = updates.content;
+  if (updates.youtubeUrl !== undefined) dbUpdates.youtube_url = updates.youtubeUrl;
+  if (updates.strummingPattern !== undefined) dbUpdates.strumming_pattern = updates.strummingPattern;
+  if (updates.imageData !== undefined) dbUpdates.image_data = updates.imageData;
+  if (updates.musicXML !== undefined) dbUpdates.music_xml = updates.musicXML;
+  if (updates.folderId !== undefined) dbUpdates.folder_id = updates.folderId;
+
+  const { data, error } = await supabase
+    .from('texts')
+    .update(dbUpdates)
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating text:', error);
+    throw error;
+  }
+
+  return {
+    id: data.id,
+    title: data.title,
+    artist: data.artist,
+    content: data.content,
+    youtubeUrl: data.youtube_url,
+    strummingPattern: data.strumming_pattern,
+    imageData: data.image_data,
+    musicXML: data.music_xml,
+    folderId: data.folder_id,
+    createdAt: data.created_at,
+    updatedAt: data.updated_at
+  };
 };
 
-export const moveText = (id, folderId) => {
+export const deleteText = async (id) => {
+  const { error } = await supabase
+    .from('texts')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting text:', error);
+    throw error;
+  }
+};
+
+export const moveText = async (id, folderId) => {
   return updateText(id, { folderId });
 };
