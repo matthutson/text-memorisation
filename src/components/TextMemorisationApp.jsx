@@ -590,7 +590,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     value={text}
                     onChange={(e) => setText(e.target.value)}
                     placeholder="Paste your text here..."
-                    className={`w-full h-64 p-4 border focus:outline-none resize-none transition-colors ${
+                    className={`w-full h-64 p-4 border-[1.5px] focus:outline-none resize-none transition-colors ${
                       isDarkMode
                         ? 'border-gray-700 bg-gray-800 text-white placeholder-gray-500 focus:border-gray-600'
                         : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
@@ -728,7 +728,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   <div className="flex items-center gap-2">
                 <button
                   onClick={() => setFontSize(Math.max(12, fontSize - 2))}
-                  className={`w-6 h-6 border transition-colors flex items-center justify-center ${
+                  className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${
                     isDarkMode
                       ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
                       : 'border-gray-300 hover:border-black hover:bg-gray-50'
@@ -741,7 +741,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 }`}>Size</span>
                 <button
                   onClick={() => setFontSize(Math.min(24, fontSize + 2))}
-                  className={`w-6 h-6 border transition-colors flex items-center justify-center ${
+                  className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${
                     isDarkMode
                       ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
                       : 'border-gray-300 hover:border-black hover:bg-gray-50'
@@ -759,7 +759,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
-                  className={`w-6 h-6 border transition-colors flex items-center justify-center ${
+                  className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${
                     isDarkMode
                       ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
                       : 'border-gray-300 hover:border-black hover:bg-gray-50'
@@ -772,7 +772,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 }`}>Cols</span>
                 <button
                   onClick={() => setColumnWidth(Math.max(200, columnWidth - 20))}
-                  className={`w-6 h-6 border transition-colors flex items-center justify-center ${
+                  className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${
                     isDarkMode
                       ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
                       : 'border-gray-300 hover:border-black hover:bg-gray-50'
@@ -891,7 +891,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   type="number"
                   value={metronomeBPM}
                   onChange={(e) => setMetronomeBPM(Math.max(20, Math.min(250, parseInt(e.target.value) || 120)))}
-                  className={`w-16 px-2 py-1 text-sm text-center border focus:outline-none transition-colors ${
+                  className={`w-16 px-2 py-1 text-sm text-center border-[1.5px] focus:outline-none transition-colors ${
                     isDarkMode
                       ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-500'
                       : 'border-gray-300 bg-white text-black focus:border-black'
@@ -907,7 +907,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   type="number"
                   value={metronomeMeter}
                   onChange={(e) => setMetronomeMeter(Math.max(1, Math.min(12, parseInt(e.target.value) || 4)))}
-                  className={`w-12 px-2 py-1 text-sm text-center border focus:outline-none transition-colors ${
+                  className={`w-12 px-2 py-1 text-sm text-center border-[1.5px] focus:outline-none transition-colors ${
                     isDarkMode
                       ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-500'
                       : 'border-gray-300 bg-white text-black focus:border-black'
@@ -1037,73 +1037,86 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     marginTop: '3rem',
                     breakBefore: 'column',
                     pageBreakBefore: 'always',
-                    width: `${columnWidth * 8}px`,
-                    display: 'flex',
-                    flexDirection: 'row',
-                    gap: '2rem',
-                    alignItems: 'flex-start'
+                    width: `${columnWidth * 8}px`
                   }}>
                     {/* Display uploaded images side by side */}
-                    {uploadedImages.map((image, index) => (
-                      <div key={index} style={{
-                        flex: '1',
-                        minWidth: `${columnWidth * 3}px`
+                    {uploadedImages.length > 0 && (
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'row',
+                        gap: '2rem',
+                        alignItems: 'flex-start',
+                        marginBottom: uploadedImages.length > 0 ? '2rem' : '0'
                       }}>
-                        {index === 0 && (
-                          <div style={{
-                            fontSize: '1em',
-                            fontWeight: '500',
-                            marginBottom: '1rem',
-                            opacity: 0.7
+                        {uploadedImages.map((image, index) => (
+                          <div key={index} style={{
+                            flex: '1',
+                            minWidth: `${columnWidth * 3}px`
                           }}>
-                            Reference Images
+                            {index === 0 && (
+                              <div style={{
+                                fontSize: '1em',
+                                fontWeight: '500',
+                                marginBottom: '1rem',
+                                opacity: 0.7
+                              }}>
+                                Reference Images
+                              </div>
+                            )}
+                            <img
+                              src={image}
+                              alt={`Reference material ${index + 1}`}
+                              style={{
+                                width: '100%',
+                                height: 'calc(100vh - 180px)',
+                                objectFit: 'contain',
+                                border: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+                                borderRadius: '12px'
+                              }}
+                            />
                           </div>
-                        )}
-                        <img
-                          src={image}
-                          alt={`Reference material ${index + 1}`}
-                          style={{
-                            width: '100%',
-                            height: 'calc(100vh - 180px)',
-                            objectFit: 'contain',
-                            border: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-                            borderRadius: '4px'
-                          }}
-                        />
+                        ))}
                       </div>
-                    ))}
+                    )}
 
-                    {/* Dropzone uploader */}
+                    {/* Dropzone uploader - always centered */}
                     <div style={{
-                      flex: '0 0 auto',
-                      width: `${columnWidth * 1.5}px`
+                      display: 'flex',
+                      justifyContent: 'center',
+                      width: '100%'
                     }}>
                       <div style={{
-                        fontSize: '1em',
-                        fontWeight: '500',
-                        marginBottom: '1rem',
-                        opacity: 0.7
+                        width: `${columnWidth * 2}px`,
+                        maxWidth: '600px'
                       }}>
-                        Upload Images
+                        <div style={{
+                          fontSize: '1em',
+                          fontWeight: '500',
+                          marginBottom: '1rem',
+                          opacity: 0.7,
+                          textAlign: 'center'
+                        }}>
+                          Upload Images
+                        </div>
+                        <form
+                          ref={dropzoneRef}
+                          className="dropzone"
+                          style={{
+                            border: isDarkMode ? '2px dashed #4b5563' : '2px dashed #d1d5db',
+                            borderRadius: '12px',
+                            padding: '2rem',
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                            height: '240px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '0.875rem'
+                          }}
+                        >
+                        </form>
                       </div>
-                      <form
-                        ref={dropzoneRef}
-                        className="dropzone"
-                        style={{
-                          border: isDarkMode ? '2px dashed #4b5563' : '2px dashed #d1d5db',
-                          borderRadius: '8px',
-                          padding: '1rem',
-                          textAlign: 'center',
-                          cursor: 'pointer',
-                          backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
-                          height: '200px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          fontSize: '0.875rem'
-                        }}
-                      >
-                      </form>
                     </div>
                   </div>
                 </div>
@@ -1121,7 +1134,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       }`}>
                         <button
                           onClick={handlePlayPause}
-                          className={`px-4 py-2 text-sm font-medium uppercase tracking-wider transition-colors ${
+                          className={`px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors ${
                             isPlayingMusic
                               ? (isDarkMode ? 'bg-green-700 text-white hover:bg-green-600' : 'bg-green-800 text-white hover:bg-green-900')
                               : (isDarkMode
@@ -1133,7 +1146,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         </button>
                         <button
                           onClick={handleStop}
-                          className={`px-4 py-2 text-sm font-medium uppercase tracking-wider transition-colors ${
+                          className={`px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors ${
                             isDarkMode
                               ? 'bg-gray-700 text-white hover:bg-gray-600'
                               : 'bg-black text-white hover:bg-gray-900'
@@ -1157,7 +1170,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                           </label>
                           <button
                             onClick={handleRemoveMusicXML}
-                            className={`px-3 py-1 text-xs uppercase tracking-wider font-medium border transition-colors ${
+                            className={`px-3 py-1 text-xs uppercase tracking-wider font-medium border-[1.5px] transition-colors ${
                               isDarkMode
                                 ? 'border-red-600 text-red-400 hover:bg-red-900 hover:border-red-500'
                                 : 'border-red-300 text-red-600 hover:bg-red-50 hover:border-red-600'
@@ -1198,7 +1211,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
                       {/* XML Upload Section */}
                       {!musicXMLFile && (
-                        <div className={`border-2 border-dashed rounded-lg p-12 text-center transition-colors ${
+                        <div className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors ${
                           isDarkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-300 bg-gray-50'
                         }`}>
                           <div className="mb-4">
@@ -1234,7 +1247,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       {musicXMLFile && (
                         <div
                           ref={osmdContainerRef}
-                          className={`border rounded-lg p-4 transition-colors ${
+                          className={`border rounded-xl p-4 transition-colors ${
                             isDarkMode ? 'border-gray-700 bg-white' : 'border-gray-300 bg-white'
                           }`}
                           style={{ minHeight: '400px' }}
