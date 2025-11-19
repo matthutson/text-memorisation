@@ -3,38 +3,89 @@ import {
   getTexts,
   createText,
   updateText,
-  deleteText
+  deleteText,
+  getFolders,
+  createFolder,
+  updateFolder,
+  deleteFolder
 } from '../utils/storage';
 
 export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode }) {
-  const [texts, setTexts] = useState([]);
+  const [folders, setFolders] = useState([]);
+  const [selectedFolderId, setSelectedFolderId] = useState('all');
+  const [allTexts, setAllTexts] = useState([]);
   const [showNewTextModal, setShowNewTextModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showNewFolderModal, setShowNewFolderModal] = useState(false);
+  const [showEditFolderModal, setShowEditFolderModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
+  const [editingFolder, setEditingFolder] = useState(null);
   const [newItemName, setNewItemName] = useState('');
   const [newTextArtist, setNewTextArtist] = useState('');
   const [newTextYoutubeUrl, setNewTextYoutubeUrl] = useState('');
   const [newTextContent, setNewTextContent] = useState('');
+  const [newFolderName, setNewFolderName] = useState('');
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
+    const foldersData = await getFolders();
+    setFolders(foldersData);
     const textsData = await getTexts();
-    // Sort by most recently created (descending)
     const sortedTexts = textsData.sort((a, b) => b.createdAt - a.createdAt);
-    setTexts(sortedTexts);
+    setAllTexts(sortedTexts);
   };
+
+  const texts = selectedFolderId === 'all'
+    ? allTexts
+    : allTexts.filter(t => t.folderId === selectedFolderId);
 
   const handleCreateText = async () => {
     if (newItemName.trim() && newTextContent.trim()) {
-      await createText(newItemName.trim(), newTextContent.trim(), 'default', newTextArtist.trim(), newTextYoutubeUrl.trim(), '', '');
+      const folderId = selectedFolderId === 'all' ? 'default' : selectedFolderId;
+      await createText(newItemName.trim(), newTextContent.trim(), folderId, newTextArtist.trim(), newTextYoutubeUrl.trim(), '', '');
       setNewItemName('');
       setNewTextArtist('');
       setNewTextYoutubeUrl('');
       setNewTextContent('');
       setShowNewTextModal(false);
+      await loadData();
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (newFolderName.trim()) {
+      await createFolder(newFolderName.trim());
+      setNewFolderName('');
+      setShowNewFolderModal(false);
+      await loadData();
+    }
+  };
+
+  const handleEditFolder = (folder) => {
+    setEditingFolder(folder);
+    setNewFolderName(folder.name);
+    setShowEditFolderModal(true);
+  };
+
+  const handleSaveFolder = async () => {
+    if (editingFolder && newFolderName.trim()) {
+      await updateFolder(editingFolder.id, newFolderName.trim());
+      setEditingFolder(null);
+      setNewFolderName('');
+      setShowEditFolderModal(false);
+      await loadData();
+    }
+  };
+
+  const handleDeleteFolder = async (folderId) => {
+    if (confirm('Delete this folder? All texts will be moved to Uncategorized.')) {
+      await deleteFolder(folderId);
+      if (selectedFolderId === folderId) {
+        setSelectedFolderId('all');
+      }
       await loadData();
     }
   };
@@ -133,8 +184,124 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
         </div>
       </div>
 
-      {/* Content */}
-      <div className="p-6">
+      {/* Main Layout with Sidebar */}
+      <div className="flex">
+        {/* Sidebar */}
+        <div className={`w-64 border-r-[1.5px] min-h-screen transition-colors ${
+          isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
+        }`}>
+          <div className="p-4">
+            <div className="mb-4">
+              <button
+                onClick={() => setShowNewFolderModal(true)}
+                className={`w-full px-4 py-2.5 text-sm font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] ${
+                  isDarkMode
+                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                }`}
+              >
+                New Folder
+              </button>
+            </div>
+
+            {/* All Texts */}
+            <div
+              onClick={() => setSelectedFolderId('all')}
+              className={`px-4 py-3 rounded-xl cursor-pointer transition-all mb-2 border-[1.5px] ${
+                selectedFolderId === 'all'
+                  ? isDarkMode
+                    ? 'bg-white text-black border-white font-bold'
+                    : 'bg-black text-white border-black font-bold'
+                  : isDarkMode
+                  ? 'border-gray-700 text-gray-300 hover:border-gray-600 hover:bg-gray-700'
+                  : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-sm">All Texts</span>
+                <span className={`text-xs tabular-nums ${
+                  selectedFolderId === 'all'
+                    ? ''
+                    : isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                }`}>
+                  {allTexts.length}
+                </span>
+              </div>
+            </div>
+
+            {/* Folder List */}
+            <div className="space-y-1">
+              {folders.map(folder => (
+                <div
+                  key={folder.id}
+                  className={`px-4 py-3 rounded-xl transition-all border-[1.5px] group ${
+                    selectedFolderId === folder.id
+                      ? isDarkMode
+                        ? 'bg-white text-black border-white font-bold'
+                        : 'bg-black text-white border-black font-bold'
+                      : isDarkMode
+                      ? 'border-gray-700 text-gray-300 hover:border-gray-600 hover:bg-gray-700'
+                      : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span
+                      className="text-sm cursor-pointer flex-1"
+                      onClick={() => setSelectedFolderId(folder.id)}
+                    >
+                      {folder.name}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className={`text-xs tabular-nums mr-2 ${
+                        selectedFolderId === folder.id
+                          ? ''
+                          : isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                      }`}>
+                        {allTexts.filter(t => t.folderId === folder.id).length}
+                      </span>
+                      {folder.id !== 'default' && (
+                        <>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditFolder(folder);
+                            }}
+                            className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
+                              isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                            }`}
+                            title="Edit folder"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                            </svg>
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteFolder(folder.id);
+                            }}
+                            className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${
+                              isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
+                            }`}
+                            title="Delete folder"
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                            </svg>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 p-6">
         {texts.length === 0 ? (
           <div className="text-center py-24">
             <svg className={`mx-auto h-16 w-16 mb-6 transition-colors ${
@@ -222,7 +389,111 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
             </div>
           </div>
         )}
+        </div>
       </div>
+
+      {/* New Folder Modal */}
+      {showNewFolderModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+          }`}>
+            <h3 className={`text-xl font-semibold mb-5 transition-colors ${
+              isDarkMode ? 'text-white' : 'text-black'
+            }`}>New Folder</h3>
+            <input
+              type="text"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              placeholder="Folder name"
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${
+                isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+              }`}
+              autoFocus
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowNewFolderModal(false);
+                  setNewFolderName('');
+                }}
+                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${
+                  isDarkMode
+                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim()}
+                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isDarkMode
+                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
+                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
+                }`}
+              >
+                Create
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Folder Modal */}
+      {showEditFolderModal && editingFolder && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${
+            isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+          }`}>
+            <h3 className={`text-xl font-semibold mb-5 transition-colors ${
+              isDarkMode ? 'text-white' : 'text-black'
+            }`}>Edit Folder</h3>
+            <input
+              type="text"
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              placeholder="Folder name"
+              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${
+                isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+              }`}
+              autoFocus
+            />
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setShowEditFolderModal(false);
+                  setEditingFolder(null);
+                  setNewFolderName('');
+                }}
+                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${
+                  isDarkMode
+                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                }`}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveFolder}
+                disabled={!newFolderName.trim()}
+                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${
+                  isDarkMode
+                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
+                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
+                }`}
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* New Text Modal */}
       {showNewTextModal && (
