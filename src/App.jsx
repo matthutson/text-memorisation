@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import HomePage from './components/HomePage';
 import TextMemorisationApp from './components/TextMemorisationApp';
+import { getText } from './utils/storage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -61,6 +62,17 @@ function App() {
     setCurrentText(null);
   };
 
+  // Refresh current text data from database (useful after stems upload)
+  const refreshCurrentText = async () => {
+    if (currentText?.id) {
+      console.log('[App] Refreshing text data from database for:', currentText.id);
+      const updatedText = await getText(currentText.id);
+      if (updatedText) {
+        setCurrentText(updatedText);
+      }
+    }
+  };
+
   return (
     <ErrorBoundary>
       {currentView === 'home' ? (
@@ -74,6 +86,7 @@ function App() {
           initialText={currentText?.content || ''}
           textData={currentText}
           onExit={handleExitPractice}
+          onTextDataUpdate={refreshCurrentText}
           isDarkMode={isDarkMode}
           onToggleDarkMode={toggleDarkMode}
         />

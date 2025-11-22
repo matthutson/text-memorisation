@@ -119,6 +119,7 @@ export const getTexts = async (folderId = null) => {
     strummingPattern: text.strumming_pattern,
     imageData: text.image_data,
     musicXML: text.music_xml,
+    stems: text.stems,
     folderId: text.folder_id,
     createdAt: text.created_at,
     updatedAt: text.updated_at
@@ -146,6 +147,7 @@ export const getText = async (id) => {
     strummingPattern: data.strumming_pattern,
     imageData: data.image_data,
     musicXML: data.music_xml,
+    stems: data.stems,
     folderId: data.folder_id,
     createdAt: data.created_at,
     updatedAt: data.updated_at
@@ -160,7 +162,8 @@ export const createText = async (
   youtubeUrl = '',
   strummingPattern = '',
   imageData = '',
-  musicXML = ''
+  musicXML = '',
+  stems = []
 ) => {
   const newText = {
     id: `text-${Date.now()}`,
@@ -171,6 +174,7 @@ export const createText = async (
     strumming_pattern: strummingPattern,
     image_data: imageData,
     music_xml: musicXML,
+    stems,
     folder_id: folderId,
     created_at: Date.now(),
     updated_at: Date.now()
@@ -196,6 +200,7 @@ export const createText = async (
     strummingPattern: data.strumming_pattern,
     imageData: data.image_data,
     musicXML: data.music_xml,
+    stems: data.stems,
     folderId: data.folder_id,
     createdAt: data.created_at,
     updatedAt: data.updated_at
@@ -215,6 +220,7 @@ export const updateText = async (id, updates) => {
   if (updates.strummingPattern !== undefined) dbUpdates.strumming_pattern = updates.strummingPattern;
   if (updates.imageData !== undefined) dbUpdates.image_data = updates.imageData;
   if (updates.musicXML !== undefined) dbUpdates.music_xml = updates.musicXML;
+  if (updates.stems !== undefined) dbUpdates.stems = updates.stems;
   if (updates.folderId !== undefined) dbUpdates.folder_id = updates.folderId;
 
   const { data, error } = await supabase
@@ -238,6 +244,7 @@ export const updateText = async (id, updates) => {
     strummingPattern: data.strumming_pattern,
     imageData: data.image_data,
     musicXML: data.music_xml,
+    stems: data.stems,
     folderId: data.folder_id,
     createdAt: data.created_at,
     updatedAt: data.updated_at

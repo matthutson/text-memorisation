@@ -3,6 +3,7 @@ import { Dropzone } from 'dropzone';
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import AudioPlayer from 'osmd-audio-player';
 import { updateText } from '../utils/storage';
+import StemPlayerWrapper from './StemPlayerWrapper';
 
 // A simple, self-contained Slider component to replace the external dependency.
 const Slider = ({ sliderProps }) => {
@@ -37,8 +38,22 @@ const Slider = ({ sliderProps }) => {
   );
 };
 
-export default function TextMemorisationApp({ initialText = '', textData, onExit, isDarkMode, onToggleDarkMode }) {
+export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
   const [text, setText] = useState(initialText);
+  const [stems, setStems] = useState(textData?.stems || []);
+
+  // Sync stems from textData when it changes (e.g., after database update)
+  useEffect(() => {
+    console.log('[TextMemorisationApp] textData changed:', textData);
+    console.log('[TextMemorisationApp] textData.stems:', textData?.stems);
+    if (textData?.stems && textData.stems.length > 0) {
+      console.log('[TextMemorisationApp] Loading stems from textData:', textData.stems);
+      setStems(textData.stems);
+    } else {
+      console.log('[TextMemorisationApp] No stems found in textData');
+    }
+  }, [textData?.id, textData?.stems]); // Re-run when textData or stems change
+  const [isStemPlayerVisible, setIsStemPlayerVisible] = useState(false);
   const [visibility, setVisibility] = useState(100);
   const [isEditing, setIsEditing] = useState(!initialText);
   const [fontSize, setFontSize] = useState(16);
@@ -690,6 +705,20 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 )}
               </button>
 
+              {/* Stem Player Toggle */}
+              <button
+                onClick={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
+                className={`px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors ${isStemPlayerVisible
+                  ? (isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black')
+                  : (isDarkMode
+                    ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                    : 'text-gray-600 hover:text-black hover:bg-gray-100')
+                  }`}
+                title={isStemPlayerVisible ? 'Hide Backing Tracks' : 'Show Backing Tracks'}
+              >
+                {isStemPlayerVisible ? 'Hide' : 'Show'} Backing Tracks
+              </button>
+
               {currentTab === 'text' && (
                 <>
                   <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
@@ -910,329 +939,345 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               </div>
             )}
 
-            {/* Text Display */}
-            <div className={`flex-grow overflow-hidden relative transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
-              }`}>
-              {/* YouTube embed in top-left corner */}
-              {textData?.youtubeUrl && (
-                <div style={{
-                  position: 'absolute',
-                  top: '20px',
-                  left: '20px',
-                  width: '300px',
-                  zIndex: 10,
-                  boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                  borderRadius: '4px',
-                  overflow: 'hidden'
-                }}>
-                  <div style={{
-                    position: 'relative',
-                    paddingBottom: '56.25%',
-                    height: 0
-                  }}>
-                    <iframe
-                      src={`${textData.youtubeUrl.replace('watch?v=', 'embed/')}?loop=1&playlist=${textData.youtubeUrl.split('v=')[1]?.split('&')[0]}`}
-                      style={{
-                        position: 'absolute',
-                        top: 0,
-                        left: 0,
-                        width: '100%',
-                        height: '100%'
-                      }}
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      title="YouTube video"
-                    />
-                  </div>
-                </div>
-              )}
+            {/* Main Content Area with Stem Player Sidebar */}
+            <div className="flex-1 flex overflow-hidden">
+              {/* Stem Player Sidebar - always mounted but conditionally visible */}
+              <StemPlayerWrapper
+                stems={stems}
+                setStems={setStems}
+                textId={textData?.id}
+                isDarkMode={isDarkMode}
+                isVisible={isStemPlayerVisible}
+                onStemsUpdate={onTextDataUpdate}
+              />
 
-              {/* Text Tab Content */}
-              {currentTab === 'text' && (
-                <div
-                  ref={scrollContainerRef}
-                  className="h-full overflow-x-auto overflow-y-hidden p-8"
-                  style={{
-                    scrollBehavior: 'smooth',
-                    WebkitOverflowScrolling: 'touch',
-                    scrollbarWidth: 'none',
-                    msOverflowStyle: 'none',
-                    backgroundColor: isDarkMode ? '#111827' : '#ffffff'
-                  }}>
-                  <div
-                    className={`transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}
-                    style={{
-                      columnWidth: `${columnWidth}px`,
-                      columnGap: '3rem',
-                      columnRule: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-                      columnFill: 'auto',
-                      width: 'max-content',
-                      minWidth: '100%',
-                      height: 'calc(100% - 20px)',
-                      paddingBottom: '20px',
-                      paddingLeft: `${columnWidth * 2}px` // Add 2 columns of padding at start
+              {/* Main Content */}
+              <div className="flex-1 flex flex-col overflow-hidden">
+                {/* Text Display */}
+                <div className={`flex-grow overflow-hidden relative transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
+                  }`}>
+                  {/* YouTube embed in top-left corner */}
+                  {textData?.youtubeUrl && (
+                    <div style={{
+                      position: 'absolute',
+                      top: '20px',
+                      left: '20px',
+                      width: '300px',
+                      zIndex: 10,
+                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                      borderRadius: '4px',
+                      overflow: 'hidden'
                     }}>
-                    {/* Song info header */}
-                    {textData && (textData.title || textData.artist) && (
                       <div style={{
-                        marginBottom: '2rem',
-                        paddingBottom: '1rem',
-                        borderBottom: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb'
+                        position: 'relative',
+                        paddingBottom: '56.25%',
+                        height: 0
                       }}>
-                        {textData.title && (
-                          <div style={{ fontSize: '1.5em', fontWeight: '500', marginBottom: '0.25rem' }}>
-                            {textData.title}
-                          </div>
-                        )}
-                        {textData.artist && (
-                          <div style={{
-                            fontSize: '1.1em',
-                            fontWeight: '300',
-                            color: isDarkMode ? '#9ca3af' : '#6b7280',
-                            marginBottom: '0.5rem'
-                          }}>
-                            {textData.artist}
-                          </div>
-                        )}
+                        <iframe
+                          src={`${textData.youtubeUrl.replace('watch?v=', 'embed/')}?loop=1&playlist=${textData.youtubeUrl.split('v=')[1]?.split('&')[0]}`}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            left: 0,
+                            width: '100%',
+                            height: '100%'
+                          }}
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                          title="YouTube video"
+                        />
                       </div>
-                    )}
-                    <div style={{
-                      fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif',
-                      fontSize: `${fontSize}px`,
-                      lineHeight: '1.5',
-                      margin: 0,
-                      fontWeight: '300',
-                      whiteSpace: 'pre-wrap'
-                    }}>
-                      {processedText}
                     </div>
+                  )}
 
-                    {/* Reference Material Section */}
-                    <div style={{
-                      marginTop: '3rem',
-                      breakBefore: 'column',
-                      pageBreakBefore: 'always',
-                      width: `${columnWidth * 8}px`
-                    }}>
-                      {/* Container for images and dropzone side-by-side */}
-                      <div style={{
-                        display: 'flex',
-                        flexDirection: 'row',
-                        gap: '2rem',
-                        alignItems: 'flex-start',
-                        width: '100%'
+                  {/* Text Tab Content */}
+                  {currentTab === 'text' && (
+                    <div
+                      ref={scrollContainerRef}
+                      className="h-full overflow-x-auto overflow-y-hidden p-8"
+                      style={{
+                        scrollBehavior: 'smooth',
+                        WebkitOverflowScrolling: 'touch',
+                        scrollbarWidth: 'none',
+                        msOverflowStyle: 'none',
+                        backgroundColor: isDarkMode ? '#111827' : '#ffffff'
                       }}>
-                        {/* Display uploaded images */}
-                        {uploadedImages.length > 0 && (
+                      <div
+                        className={`transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}
+                        style={{
+                          columnWidth: `${columnWidth}px`,
+                          columnGap: '3rem',
+                          columnRule: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+                          columnFill: 'auto',
+                          width: 'max-content',
+                          minWidth: '100%',
+                          height: 'calc(100% - 20px)',
+                          paddingBottom: '20px',
+                          paddingLeft: `${columnWidth * 2}px` // Add 2 columns of padding at start
+                        }}>
+                        {/* Song info header */}
+                        {textData && (textData.title || textData.artist) && (
+                          <div style={{
+                            marginBottom: '2rem',
+                            paddingBottom: '1rem',
+                            borderBottom: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb'
+                          }}>
+                            {textData.title && (
+                              <div style={{ fontSize: '1.5em', fontWeight: '500', marginBottom: '0.25rem' }}>
+                                {textData.title}
+                              </div>
+                            )}
+                            {textData.artist && (
+                              <div style={{
+                                fontSize: '1.1em',
+                                fontWeight: '300',
+                                color: isDarkMode ? '#9ca3af' : '#6b7280',
+                                marginBottom: '0.5rem'
+                              }}>
+                                {textData.artist}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                        <div style={{
+                          fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif',
+                          fontSize: `${fontSize}px`,
+                          lineHeight: '1.5',
+                          margin: 0,
+                          fontWeight: '300',
+                          whiteSpace: 'pre-wrap'
+                        }}>
+                          {processedText}
+                        </div>
+
+                        {/* Reference Material Section */}
+                        <div style={{
+                          marginTop: '3rem',
+                          breakBefore: 'column',
+                          pageBreakBefore: 'always',
+                          width: `${columnWidth * 8}px`
+                        }}>
+                          {/* Container for images and dropzone side-by-side */}
                           <div style={{
                             display: 'flex',
                             flexDirection: 'row',
                             gap: '2rem',
-                            flex: '1',
-                            alignItems: 'flex-start'
+                            alignItems: 'flex-start',
+                            width: '100%'
                           }}>
-                            {uploadedImages.map((image, index) => (
-                              <div key={index} style={{
+                            {/* Display uploaded images */}
+                            {uploadedImages.length > 0 && (
+                              <div style={{
+                                display: 'flex',
+                                flexDirection: 'row',
+                                gap: '2rem',
                                 flex: '1',
-                                minWidth: `${columnWidth * 3}px`
+                                alignItems: 'flex-start'
                               }}>
-                                {index === 0 && (
-                                  <div style={{
-                                    fontSize: '1em',
-                                    fontWeight: '500',
-                                    marginBottom: '1rem',
-                                    opacity: 0.7
+                                {uploadedImages.map((image, index) => (
+                                  <div key={index} style={{
+                                    flex: '1',
+                                    minWidth: `${columnWidth * 3}px`
                                   }}>
-                                    Reference Images
+                                    {index === 0 && (
+                                      <div style={{
+                                        fontSize: '1em',
+                                        fontWeight: '500',
+                                        marginBottom: '1rem',
+                                        opacity: 0.7
+                                      }}>
+                                        Reference Images
+                                      </div>
+                                    )}
+                                    <img
+                                      src={image}
+                                      alt={`Reference material ${index + 1}`}
+                                      style={{
+                                        width: '100%',
+                                        height: 'calc(100vh - 180px)',
+                                        objectFit: 'contain',
+                                        border: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+                                        borderRadius: '12px'
+                                      }}
+                                    />
                                   </div>
-                                )}
-                                <img
-                                  src={image}
-                                  alt={`Reference material ${index + 1}`}
-                                  style={{
-                                    width: '100%',
-                                    height: 'calc(100vh - 180px)',
-                                    objectFit: 'contain',
-                                    border: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-                                    borderRadius: '12px'
-                                  }}
-                                />
+                                ))}
                               </div>
-                            ))}
+                            )}
+
+                            {/* Dropzone uploader - positioned to the right of images */}
+                            <div style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              justifyContent: 'center',
+                              width: uploadedImages.length > 0 ? `${columnWidth * 2}px` : '100%',
+                              maxWidth: uploadedImages.length > 0 ? `${columnWidth * 2}px` : '600px',
+                              margin: uploadedImages.length === 0 ? '0 auto' : '0'
+                            }}>
+                              <div style={{
+                                fontSize: '1em',
+                                fontWeight: '500',
+                                marginBottom: '1rem',
+                                opacity: 0.7,
+                                textAlign: uploadedImages.length > 0 ? 'left' : 'center'
+                              }}>
+                                Upload Images
+                              </div>
+                              <form
+                                ref={dropzoneRef}
+                                className="dropzone"
+                                style={{
+                                  border: isDarkMode ? '2px dashed #4b5563' : '2px dashed #d1d5db',
+                                  borderRadius: '12px',
+                                  padding: '2rem',
+                                  textAlign: 'center',
+                                  cursor: 'pointer',
+                                  backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
+                                  height: '240px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  fontSize: '0.875rem',
+                                  color: isDarkMode ? '#d1d5db' : '#4b5563'
+                                }}
+                              >
+                              </form>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Music Tab Content */}
+                  {currentTab === 'music' && (
+                    <div className="h-full overflow-y-auto" style={{
+                      backgroundColor: isDarkMode ? '#111827' : '#ffffff'
+                    }}>
+                      <div className={`max-w-7xl mx-auto transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}>
+                        {/* Simple Playback Controls - at the top below nav */}
+                        {musicXMLFile && (
+                          <div className={`border-b px-4 py-3 flex items-center gap-3 transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+                            }`}>
+                            <button
+                              onClick={handlePlayPause}
+                              className={`px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors ${isPlayingMusic
+                                ? (isDarkMode ? 'bg-green-700 text-white hover:bg-green-600' : 'bg-green-800 text-white hover:bg-green-900')
+                                : (isDarkMode
+                                  ? 'bg-gray-700 text-white hover:bg-gray-600'
+                                  : 'bg-black text-white hover:bg-gray-900')
+                                }`}
+                            >
+                              {isPlayingMusic ? 'Pause' : 'Play'}
+                            </button>
+                            <button
+                              onClick={handleStop}
+                              className={`px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
+                                ? 'bg-gray-700 text-white hover:bg-gray-600'
+                                : 'bg-black text-white hover:bg-gray-900'
+                                }`}
+                            >
+                              Stop
+                            </button>
+                            <div className="ml-auto flex items-center gap-2">
+                              <label className={`px-3 py-1 text-xs uppercase tracking-wider font-medium border cursor-pointer transition-colors ${isDarkMode
+                                ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                                : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                                }`}>
+                                <input
+                                  type="file"
+                                  accept=".xml,.musicxml"
+                                  onChange={handleMusicXMLUpload}
+                                  className="hidden"
+                                />
+                                Replace File
+                              </label>
+                              <button
+                                onClick={handleRemoveMusicXML}
+                                className={`px-3 py-1 text-xs uppercase tracking-wider font-medium border-[1.5px] transition-colors ${isDarkMode
+                                  ? 'border-red-600 text-red-400 hover:bg-red-900 hover:border-red-500'
+                                  : 'border-red-300 text-red-600 hover:bg-red-50 hover:border-red-600'
+                                  }`}
+                              >
+                                Remove
+                              </button>
+                            </div>
                           </div>
                         )}
 
-                        {/* Dropzone uploader - positioned to the right of images */}
-                        <div style={{
-                          display: 'flex',
-                          flexDirection: 'column',
-                          justifyContent: 'center',
-                          width: uploadedImages.length > 0 ? `${columnWidth * 2}px` : '100%',
-                          maxWidth: uploadedImages.length > 0 ? `${columnWidth * 2}px` : '600px',
-                          margin: uploadedImages.length === 0 ? '0 auto' : '0'
-                        }}>
-                          <div style={{
-                            fontSize: '1em',
-                            fontWeight: '500',
-                            marginBottom: '1rem',
-                            opacity: 0.7,
-                            textAlign: uploadedImages.length > 0 ? 'left' : 'center'
-                          }}>
-                            Upload Images
-                          </div>
-                          <form
-                            ref={dropzoneRef}
-                            className="dropzone"
-                            style={{
-                              border: isDarkMode ? '2px dashed #4b5563' : '2px dashed #d1d5db',
-                              borderRadius: '12px',
-                              padding: '2rem',
-                              textAlign: 'center',
-                              cursor: 'pointer',
-                              backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
-                              height: '240px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              fontSize: '0.875rem',
-                              color: isDarkMode ? '#d1d5db' : '#4b5563'
-                            }}
-                          >
-                          </form>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Music Tab Content */}
-              {currentTab === 'music' && (
-                <div className="h-full overflow-y-auto" style={{
-                  backgroundColor: isDarkMode ? '#111827' : '#ffffff'
-                }}>
-                  <div className={`max-w-7xl mx-auto transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}>
-                    {/* Simple Playback Controls - at the top below nav */}
-                    {musicXMLFile && (
-                      <div className={`border-b px-4 py-3 flex items-center gap-3 transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
-                        }`}>
-                        <button
-                          onClick={handlePlayPause}
-                          className={`px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors ${isPlayingMusic
-                            ? (isDarkMode ? 'bg-green-700 text-white hover:bg-green-600' : 'bg-green-800 text-white hover:bg-green-900')
-                            : (isDarkMode
-                              ? 'bg-gray-700 text-white hover:bg-gray-600'
-                              : 'bg-black text-white hover:bg-gray-900')
-                            }`}
-                        >
-                          {isPlayingMusic ? 'Pause' : 'Play'}
-                        </button>
-                        <button
-                          onClick={handleStop}
-                          className={`px-4 py-2 text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
-                            ? 'bg-gray-700 text-white hover:bg-gray-600'
-                            : 'bg-black text-white hover:bg-gray-900'
-                            }`}
-                        >
-                          Stop
-                        </button>
-                        <div className="ml-auto flex items-center gap-2">
-                          <label className={`px-3 py-1 text-xs uppercase tracking-wider font-medium border cursor-pointer transition-colors ${isDarkMode
-                            ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                            : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                            }`}>
-                            <input
-                              type="file"
-                              accept=".xml,.musicxml"
-                              onChange={handleMusicXMLUpload}
-                              className="hidden"
-                            />
-                            Replace File
-                          </label>
-                          <button
-                            onClick={handleRemoveMusicXML}
-                            className={`px-3 py-1 text-xs uppercase tracking-wider font-medium border-[1.5px] transition-colors ${isDarkMode
-                              ? 'border-red-600 text-red-400 hover:bg-red-900 hover:border-red-500'
-                              : 'border-red-300 text-red-600 hover:bg-red-50 hover:border-red-600'
-                              }`}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Content Area */}
-                    <div className="p-8">
-                      {/* Song info header */}
-                      {textData && (textData.title || textData.artist) && (
-                        <div style={{
-                          marginBottom: '2rem',
-                          paddingBottom: '1rem',
-                          borderBottom: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb'
-                        }}>
-                          {textData.title && (
-                            <div style={{ fontSize: '1.5em', fontWeight: '500', marginBottom: '0.25rem' }}>
-                              {textData.title}
-                            </div>
-                          )}
-                          {textData.artist && (
+                        {/* Content Area */}
+                        <div className="p-8">
+                          {/* Song info header */}
+                          {textData && (textData.title || textData.artist) && (
                             <div style={{
-                              fontSize: '1.1em',
-                              fontWeight: '300',
-                              color: isDarkMode ? '#9ca3af' : '#6b7280',
-                              marginBottom: '0.5rem'
+                              marginBottom: '2rem',
+                              paddingBottom: '1rem',
+                              borderBottom: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb'
                             }}>
-                              {textData.artist}
+                              {textData.title && (
+                                <div style={{ fontSize: '1.5em', fontWeight: '500', marginBottom: '0.25rem' }}>
+                                  {textData.title}
+                                </div>
+                              )}
+                              {textData.artist && (
+                                <div style={{
+                                  fontSize: '1.1em',
+                                  fontWeight: '300',
+                                  color: isDarkMode ? '#9ca3af' : '#6b7280',
+                                  marginBottom: '0.5rem'
+                                }}>
+                                  {textData.artist}
+                                </div>
+                              )}
                             </div>
                           )}
-                        </div>
-                      )}
 
-                      {/* XML Upload Section */}
-                      {!musicXMLFile && (
-                        <div className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors ${isDarkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-300 bg-gray-50'
-                          }`}>
-                          <div className="mb-4">
-                            <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
-                            </svg>
-                          </div>
-                          <h3 className={`text-lg font-medium mb-2 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                            }`}>Upload MusicXML File</h3>
-                          <p className={`text-sm mb-4 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                            }`}>
-                            Upload a MusicXML (.xml or .musicxml) file to display sheet music notation
-                          </p>
-                          <label className={`inline-block px-4 py-2 border cursor-pointer transition-colors ${isDarkMode
-                            ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                            : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                            }`}>
-                            <input
-                              type="file"
-                              accept=".xml,.musicxml"
-                              onChange={handleMusicXMLUpload}
-                              className="hidden"
+                          {/* XML Upload Section */}
+                          {!musicXMLFile && (
+                            <div className={`border-2 border-dashed rounded-xl p-12 text-center transition-colors ${isDarkMode ? 'border-gray-600 bg-gray-800' : 'border-gray-300 bg-gray-50'
+                              }`}>
+                              <div className="mb-4">
+                                <svg className="mx-auto h-12 w-12" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3" />
+                                </svg>
+                              </div>
+                              <h3 className={`text-lg font-medium mb-2 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                                }`}>Upload MusicXML File</h3>
+                              <p className={`text-sm mb-4 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                                }`}>
+                                Upload a MusicXML (.xml or .musicxml) file to display sheet music notation
+                              </p>
+                              <label className={`inline-block px-4 py-2 border cursor-pointer transition-colors ${isDarkMode
+                                ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                                : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                                }`}>
+                                <input
+                                  type="file"
+                                  accept=".xml,.musicxml"
+                                  onChange={handleMusicXMLUpload}
+                                  className="hidden"
+                                />
+                                Choose File
+                              </label>
+                            </div>
+                          )}
+
+                          {/* Sheet Music Display */}
+                          {musicXMLFile && (
+                            <div
+                              ref={osmdContainerRef}
+                              className={`border rounded-xl p-4 transition-colors ${isDarkMode ? 'border-gray-700 bg-white' : 'border-gray-300 bg-white'
+                                }`}
+                              style={{ minHeight: '400px' }}
                             />
-                            Choose File
-                          </label>
+                          )}
                         </div>
-                      )}
-
-                      {/* Sheet Music Display */}
-                      {musicXMLFile && (
-                        <div
-                          ref={osmdContainerRef}
-                          className={`border rounded-xl p-4 transition-colors ${isDarkMode ? 'border-gray-700 bg-white' : 'border-gray-300 bg-white'
-                            }`}
-                          style={{ minHeight: '400px' }}
-                        />
-                      )}
+                      </div>
                     </div>
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
           </div>
         )}
