@@ -139,7 +139,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
         backgroundColor: isDarkMode ? '#111827' : '#f9fafb'
       }}>
       {/* Header */}
-      <div className={`border-b-custom px-3 md:px-6 py-3 md:py-5 flex items-center justify-between transition-colors ${isDarkMode ? 'border-blue-600 bg-gray-800' : 'border-black bg-white'
+      <div className={`border-b-custom px-3 md:px-6 py-3 md:py-5 flex items-center justify-between transition-colors relative z-30 ${isDarkMode ? 'border-blue-600 bg-gray-800' : 'border-black bg-white'
         }`}>
         <div className="flex items-center gap-2">
           {/* Mobile Menu Button */}
@@ -205,23 +205,21 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
         </div>
       </div>
 
-      {/* Mobile Sidebar Overlay */}
-      {isSidebarOpen && (
-        <div
-          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
+      {/* Mobile Sidebar Overlay - removed to keep screen visible */}
 
       {/* Main Layout with Sidebar */}
-      <div className="flex relative">
+      <div className="flex">
         {/* Sidebar */}
-        <div className={`
-          w-64 border-r-[1.5px] min-h-screen transition-all duration-300 z-50
-          ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'}
-          md:relative md:translate-x-0
-          ${isSidebarOpen ? 'fixed left-0 top-0 bottom-0 translate-x-0' : 'fixed -translate-x-full md:translate-x-0'}
-        `}>
+        <div
+          className={`
+            w-64 border-r-2 min-h-screen
+            ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'}
+            transition-transform duration-300 ease-in-out
+            fixed top-0 left-0 bottom-0 z-50
+            md:sticky md:top-0 md:translate-x-0 md:z-0
+            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
+          `}
+        >
           <div className="p-4">
             <div className="mb-4">
               <button
@@ -332,7 +330,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
         </div>
 
         {/* Content */}
-        <div className="flex-1 p-3 md:p-6">
+        <div className="flex-1 p-4 md:p-6">
           {texts.length === 0 ? (
             <div className="text-center py-16 md:py-24 px-4">
               <svg className={`mx-auto h-12 md:h-16 w-12 md:w-16 mb-4 md:mb-6 transition-colors ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
@@ -346,37 +344,34 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
             </div>
           ) : (
             <div className="max-w-7xl mx-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 mt-4">
                 {texts.map(text => (
                   <div
                     key={text.id}
-                    style={{
-                      borderWidth: '2px',
-                      borderStyle: 'solid',
-                      borderColor: isDarkMode ? '#3b82f6' : '#000000'
-                    }}
-                    className={`rounded-lg md:rounded-xl p-3 md:p-4 transition-all group hover:shadow-lg ${isDarkMode
-                      ? 'bg-gray-800'
-                      : 'bg-white'
+                    className={`rounded-2xl p-4 md:p-5 transition-all group hover:shadow-xl border-2 ${isDarkMode
+                      ? 'bg-gray-800 border-blue-500 hover:border-blue-400'
+                      : 'bg-white border-gray-900 hover:border-gray-700'
                       }`}
                   >
-                    <div className="flex items-start justify-between mb-2 md:mb-3">
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className={`font-semibold text-sm md:text-base transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                        <h3 className={`font-bold text-sm md:text-base transition-colors ${isDarkMode ? 'text-white' : 'text-black'
                           }`}>
                           {text.title}
                         </h3>
                         {text.artist && (
-                          <p className={`text-xs md:text-sm font-light truncate mt-0.5 md:mt-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          <p className={`text-xs md:text-sm font-light truncate mt-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
                             }`}>
                             {text.artist}
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-0.5 md:gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2">
+                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2">
                         <button
                           onClick={() => handleEditText(text)}
-                          className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                          className={`p-2 rounded-xl transition-all ${isDarkMode
+                            ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                            : 'hover:bg-gray-100 text-gray-600 hover:text-black'
                             }`}
                           title="Edit"
                         >
@@ -387,7 +382,9 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                         </button>
                         <button
                           onClick={() => handleDeleteText(text.id)}
-                          className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
+                          className={`p-2 rounded-xl transition-all ${isDarkMode
+                            ? 'hover:bg-red-900 text-gray-400 hover:text-red-400'
+                            : 'hover:bg-red-50 text-gray-600 hover:text-red-600'
                             }`}
                           title="Delete"
                         >
@@ -397,19 +394,14 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                         </button>
                       </div>
                     </div>
-                    <p className={`text-xs md:text-sm font-light mb-3 md:mb-4 line-clamp-2 md:line-clamp-3 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    <p className={`text-xs md:text-sm font-light mb-4 line-clamp-2 md:line-clamp-3 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
                       }`}>
                       {text.content.substring(0, 100)}...
                     </p>
                     <button
                       onClick={() => onPracticeText(text)}
-                      style={{
-                        borderWidth: '1.5px',
-                        borderStyle: 'solid',
-                        borderColor: isDarkMode ? '#ffffff' : '#000000'
-                      }}
-                      className={`w-full px-3 md:px-4 py-2 md:py-2.5 text-xs md:text-sm font-bold uppercase tracking-wider transition-colors rounded-lg md:rounded-xl ${isDarkMode
-                        ? 'bg-blue-600 text-white hover:bg-blue-700'
+                      className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl shadow-md hover:shadow-lg ${isDarkMode
+                        ? 'bg-blue-600 text-white hover:bg-blue-500'
                         : 'bg-black text-white hover:bg-gray-800'
                         }`}
                     >

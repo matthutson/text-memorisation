@@ -55,6 +55,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   }, [textData?.id, textData?.stems]); // Re-run when textData or stems change
   const [isStemPlayerVisible, setIsStemPlayerVisible] = useState(false);
   const [isMobileControlsOpen, setIsMobileControlsOpen] = useState(false);
+  const [isYouTubeVisible, setIsYouTubeVisible] = useState(false);
   const [visibility, setVisibility] = useState(100);
   const [isEditing, setIsEditing] = useState(!initialText);
   const [fontSize, setFontSize] = useState(16);
@@ -638,7 +639,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         ) : (
           <div className="flex flex-col h-full overflow-hidden">
             {/* Minimalist Control Bar */}
-            <div className={`border-b px-2 md:px-4 py-2 flex items-center gap-2 md:gap-4 flex-shrink-0 transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+            <div className={`border-b px-2 md:px-4 py-2 flex items-center gap-2 md:gap-4 flex-shrink-0 flex-wrap transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
               }`}>
               <button
                 onClick={handleReset}
@@ -680,22 +681,89 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
                 }`} />
 
-              <div className="flex-1" />
+              <div className="flex-1 hidden md:block" />
 
-              {/* Mobile Settings Button */}
+              {/* Backing Tracks (always visible) */}
+              <button
+                onClick={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
+                className={`px-2 md:px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isStemPlayerVisible
+                  ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
+                  : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
+                }`}
+                title={isStemPlayerVisible ? 'Hide Backing Tracks' : 'Show Backing Tracks'}
+              >
+                <span className="hidden sm:inline">{isStemPlayerVisible ? 'Hide' : 'Show'} Tracks</span>
+                <span className="sm:hidden">Tracks</span>
+              </button>
+
+              {/* Reveal Text Slider - shown when in text tab */}
+              {currentTab === 'text' && (
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className={`text-xs uppercase tracking-wider font-medium hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    }`}>Reveal</span>
+                  <div className="w-16 sm:w-20">
+                    <Slider
+                      sliderProps={{
+                        value: visibility,
+                        onChange: (e) => setVisibility(parseInt(e.target.value)),
+                        min: 0,
+                        max: 100,
+                        step: 5
+                      }}
+                    />
+                  </div>
+                  <span className={`text-xs sm:text-sm font-light w-8 sm:w-10 text-right transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                    }`}>{visibility}%</span>
+                </div>
+              )}
+
+              {/* Auto-scroll toggle - shown when in text tab */}
+              {currentTab === 'text' && (
+                <button
+                  onClick={() => setIsAutoAdvancing(!isAutoAdvancing)}
+                  className={`px-2 md:px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isAutoAdvancing
+                    ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
+                    : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
+                  }`}
+                  title={isAutoAdvancing ? 'Stop auto-scroll' : 'Start auto-scroll'}
+                >
+                  <span className="hidden sm:inline">Auto</span>
+                  <span className="sm:hidden">▶</span>
+                </button>
+              )}
+
+              {/* Metronome toggle - shown when in text tab */}
+              {currentTab === 'text' && (
+                <button
+                  onClick={() => setIsMetronomeActive(!isMetronomeActive)}
+                  className={`px-2 md:px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isMetronomeActive
+                    ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
+                    : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
+                  }`}
+                  title={isMetronomeActive ? 'Stop metronome' : 'Start metronome'}
+                >
+                  <span className="hidden sm:inline">Metro</span>
+                  <span className="sm:hidden">♩</span>
+                </button>
+              )}
+
+              <div className="flex-1 md:hidden" />
+
+              {/* Mobile Menu Button */}
               <button
                 onClick={() => setIsMobileControlsOpen(!isMobileControlsOpen)}
                 className={`md:hidden transition-colors flex-shrink-0 ${isDarkMode ? 'text-white hover:text-gray-400' : 'text-black hover:text-gray-600'
                   }`}
-                title="Settings"
+                title="More Settings"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="12" cy="12" r="3"/>
-                  <path d="M12 1v6m0 6v6M5.6 5.6l4.2 4.2m4.4 4.4l4.2 4.2M1 12h6m6 0h6M5.6 18.4l4.2-4.2m4.4-4.4l4.2-4.2"/>
+                  <line x1="3" y1="12" x2="21" y2="12"/>
+                  <line x1="3" y1="6" x2="21" y2="6"/>
+                  <line x1="3" y1="18" x2="21" y2="18"/>
                 </svg>
               </button>
 
-              {/* Desktop Controls */}
+              {/* Desktop-only Controls */}
               <div className="hidden md:flex md:items-center md:gap-4">
                 <div className={`h-4 w-px transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
                   }`} />
@@ -984,44 +1052,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       </button>
                     </div>
 
-                    {/* Backing Tracks */}
-                    {stems.length > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Backing Tracks</span>
-                        <button
-                          onClick={() => {
-                            setIsStemPlayerVisible(!isStemPlayerVisible);
-                            setIsMobileControlsOpen(false);
-                          }}
-                          className={`px-4 py-2 rounded-lg transition-colors ${isStemPlayerVisible
-                            ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
-                            : (isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black')
-                          }`}
-                        >
-                          {isStemPlayerVisible ? 'Visible' : 'Hidden'}
-                        </button>
-                      </div>
-                    )}
-
                     {currentTab === 'text' && (
                       <>
-                        {/* Reveal Slider */}
-                        <div>
-                          <div className="flex items-center justify-between mb-2">
-                            <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Reveal Text</span>
-                            <span className={`text-sm font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>{visibility}%</span>
-                          </div>
-                          <Slider
-                            sliderProps={{
-                              value: visibility,
-                              onChange: (e) => setVisibility(parseInt(e.target.value)),
-                              min: 0,
-                              max: 100,
-                              step: 5
-                            }}
-                          />
-                        </div>
-
                         {/* Font Size */}
                         <div className="flex items-center justify-between">
                           <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Font Size</span>
@@ -1074,33 +1106,24 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                           </div>
                         </div>
 
-                        {/* Auto-scroll */}
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Auto-scroll</span>
-                          <button
-                            onClick={() => setIsAutoAdvancing(!isAutoAdvancing)}
-                            className={`px-4 py-2 rounded-lg transition-colors ${isAutoAdvancing
-                              ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
-                              : (isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black')
-                            }`}
-                          >
-                            {isAutoAdvancing ? 'On' : 'Off'}
-                          </button>
-                        </div>
-
-                        {/* Metronome */}
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Metronome</span>
-                          <button
-                            onClick={() => setIsMetronomeActive(!isMetronomeActive)}
-                            className={`px-4 py-2 rounded-lg transition-colors ${isMetronomeActive
-                              ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
-                              : (isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black')
-                            }`}
-                          >
-                            {isMetronomeActive ? 'On' : 'Off'}
-                          </button>
-                        </div>
+                        {/* Auto-scroll Speed */}
+                        {isAutoAdvancing && (
+                          <div className="flex items-center justify-between">
+                            <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Auto-scroll Speed</span>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="range"
+                                value={autoScrollSpeed}
+                                onChange={(e) => setAutoScrollSpeed(parseInt(e.target.value))}
+                                min="1"
+                                max="10"
+                                step="1"
+                                className="w-24"
+                              />
+                              <span className={`text-sm w-8 text-center ${isDarkMode ? 'text-white' : 'text-black'}`}>{autoScrollSpeed}</span>
+                            </div>
+                          </div>
+                        )}
 
                         {/* BPM */}
                         {isMetronomeActive && (
@@ -1153,54 +1176,23 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               {/* Main Content */}
               <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Text Display */}
-                <div className={`flex-grow overflow-hidden relative transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
+                <div className={`flex-1 overflow-hidden relative transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
                   }`}>
-                  {/* YouTube embed in top-left corner */}
-                  {textData?.youtubeUrl && (
-                    <div style={{
-                      position: 'absolute',
-                      top: '20px',
-                      left: '20px',
-                      width: '300px',
-                      zIndex: 10,
-                      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-                      borderRadius: '4px',
-                      overflow: 'hidden'
-                    }}>
-                      <div style={{
-                        position: 'relative',
-                        paddingBottom: '56.25%',
-                        height: 0
-                      }}>
-                        <iframe
-                          src={`${textData.youtubeUrl.replace('watch?v=', 'embed/')}?loop=1&playlist=${textData.youtubeUrl.split('v=')[1]?.split('&')[0]}`}
-                          style={{
-                            position: 'absolute',
-                            top: 0,
-                            left: 0,
-                            width: '100%',
-                            height: '100%'
-                          }}
-                          frameBorder="0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                          title="YouTube video"
-                        />
-                      </div>
-                    </div>
-                  )}
+                  {/* YouTube toggle button - moved to bottom bar */}
 
                   {/* Text Tab Content */}
                   {currentTab === 'text' && (
                     <div
                       ref={scrollContainerRef}
-                      className="h-full overflow-x-auto overflow-y-hidden p-8"
+                      className="h-full overflow-x-auto overflow-y-hidden"
                       style={{
                         scrollBehavior: 'smooth',
                         WebkitOverflowScrolling: 'touch',
                         scrollbarWidth: 'none',
                         msOverflowStyle: 'none',
-                        backgroundColor: isDarkMode ? '#111827' : '#ffffff'
+                        backgroundColor: isDarkMode ? '#111827' : '#ffffff',
+                        padding: '2rem',
+                        paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '15vh' : '52vh') : '4rem') : '2rem'
                       }}>
                       <div
                         className={`transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}
@@ -1212,8 +1204,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                           width: 'max-content',
                           minWidth: '100%',
                           height: 'calc(100% - 20px)',
-                          paddingBottom: '20px',
-                          paddingLeft: `${columnWidth * 2}px` // Add 2 columns of padding at start
+                          paddingBottom: '20px'
                         }}>
                         {/* Song info header */}
                         {textData && (textData.title || textData.artist) && (
@@ -1351,8 +1342,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
                   {/* Music Tab Content */}
                   {currentTab === 'music' && (
-                    <div className="h-full overflow-y-auto" style={{
-                      backgroundColor: isDarkMode ? '#111827' : '#ffffff'
+                    <div className="flex-1 overflow-y-auto" style={{
+                      backgroundColor: isDarkMode ? '#111827' : '#ffffff',
+                      paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '15vh' : '52vh') : '3rem') : '0'
                     }}>
                       <div className={`max-w-7xl mx-auto transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}>
                         {/* Simple Playback Controls - at the top below nav */}
@@ -1476,6 +1468,76 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     </div>
                   )}
                 </div>
+
+                {/* YouTube Video Container - Bottom of screen */}
+                {textData?.youtubeUrl && (
+                  <div className={`transition-all duration-300 border-t flex-shrink-0 ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+                    } ${isYouTubeVisible ? 'h-[50vh] md:h-[12.5vh]' : 'h-12'}`}
+                    style={{
+                      position: 'fixed',
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      zIndex: 30
+                    }}
+                  >
+                    {!isYouTubeVisible ? (
+                      <div className="h-full flex items-center justify-center">
+                        <button
+                          onClick={() => setIsYouTubeVisible(true)}
+                          className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${isDarkMode
+                            ? 'bg-gray-700 text-white hover:bg-gray-600'
+                            : 'bg-gray-100 text-black hover:bg-gray-200'
+                            }`}
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <polygon points="5 3 19 12 5 21 5 3"/>
+                          </svg>
+                          <span className="text-sm font-medium">Load YouTube Video</span>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="p-4 h-full flex flex-col">
+                        <div className="flex items-center justify-between mb-3">
+                          <span className={`text-xs uppercase tracking-wider font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            }`}>Video</span>
+                          <button
+                            onClick={() => setIsYouTubeVisible(false)}
+                            className={`transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'
+                              }`}
+                            title="Hide video"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="18" y1="6" x2="6" y2="18"/>
+                              <line x1="6" y1="6" x2="18" y2="18"/>
+                            </svg>
+                          </button>
+                        </div>
+                        <div className="flex-1 flex items-center justify-center" style={{ overflow: 'hidden' }}>
+                          <div style={{
+                            width: '100%',
+                            height: '100%',
+                            maxWidth: '1200px',
+                            position: 'relative'
+                          }}>
+                            <iframe
+                              src={`${textData.youtubeUrl.replace('watch?v=', 'embed/')}?loop=1&playlist=${textData.youtubeUrl.split('v=')[1]?.split('&')[0]}`}
+                              style={{
+                                width: '100%',
+                                height: '100%',
+                                borderRadius: '8px'
+                              }}
+                              frameBorder="0"
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                              allowFullScreen
+                              title="YouTube video"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
