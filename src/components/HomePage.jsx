@@ -27,6 +27,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
   const [newFolderName, setNewFolderName] = useState('');
   const [newTextFolderId, setNewTextFolderId] = useState('default');
   const [editingTextFolderId, setEditingTextFolderId] = useState('default');
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -138,18 +139,33 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
         backgroundColor: isDarkMode ? '#111827' : '#f9fafb'
       }}>
       {/* Header */}
-      <div className={`border-b-custom px-6 py-5 flex items-center justify-between transition-colors ${isDarkMode ? 'border-blue-600 bg-gray-800' : 'border-black bg-white'
+      <div className={`border-b-custom px-3 md:px-6 py-3 md:py-5 flex items-center justify-between transition-colors ${isDarkMode ? 'border-blue-600 bg-gray-800' : 'border-black bg-white'
         }`}>
-        <div>
-          <h1 className={`text-2xl font-bold uppercase tracking-tight transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+        <div className="flex items-center gap-2">
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className={`md:hidden p-2 rounded-lg transition-colors ${isDarkMode
+              ? 'hover:bg-gray-700 text-white'
+              : 'hover:bg-gray-100 text-black'
+              }`}
+            aria-label="Toggle menu"
+          >
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
+            </svg>
+          </button>
+          <h1 className={`text-lg md:text-2xl font-bold uppercase tracking-tight transition-colors ${isDarkMode ? 'text-white' : 'text-black'
             }`}>
             THE REPETOIRE
           </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 md:gap-3">
           <button
             onClick={onToggleDarkMode}
-            className={`p-2.5 rounded-xl border-[1.5px] transition-colors ${isDarkMode
+            className={`p-2 md:p-2.5 rounded-xl border-[1.5px] transition-colors ${isDarkMode
               ? 'border-gray-600 hover:bg-gray-700 text-gray-300'
               : 'border-gray-300 hover:bg-gray-100 text-gray-600'
               }`}
@@ -178,21 +194,34 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
               setNewTextFolderId(selectedFolderId === 'all' ? 'default' : selectedFolderId);
               setShowNewTextModal(true);
             }}
-            className={`px-5 py-2.5 text-sm font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] ${isDarkMode
+            className={`px-3 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] ${isDarkMode
               ? 'bg-white text-black border-white hover:bg-gray-100'
               : 'bg-black text-white border-black hover:bg-gray-800'
               }`}
           >
-            New Text
+            <span className="hidden sm:inline">New Text</span>
+            <span className="sm:hidden">+</span>
           </button>
         </div>
       </div>
 
+      {/* Mobile Sidebar Overlay */}
+      {isSidebarOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={() => setIsSidebarOpen(false)}
+        />
+      )}
+
       {/* Main Layout with Sidebar */}
-      <div className="flex">
+      <div className="flex relative">
         {/* Sidebar */}
-        <div className={`w-64 border-r-[1.5px] min-h-screen transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'
-          }`}>
+        <div className={`
+          w-64 border-r-[1.5px] min-h-screen transition-all duration-300 z-50
+          ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'}
+          md:relative md:translate-x-0
+          ${isSidebarOpen ? 'fixed left-0 top-0 bottom-0 translate-x-0' : 'fixed -translate-x-full md:translate-x-0'}
+        `}>
           <div className="p-4">
             <div className="mb-4">
               <button
@@ -208,7 +237,10 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
 
             {/* All Texts */}
             <div
-              onClick={() => setSelectedFolderId('all')}
+              onClick={() => {
+                setSelectedFolderId('all');
+                setIsSidebarOpen(false);
+              }}
               className={`px-4 py-3 rounded-xl cursor-pointer transition-all mb-2 border-[1.5px] ${selectedFolderId === 'all'
                 ? isDarkMode
                   ? 'bg-blue-600 text-white border-blue-600 font-bold'
@@ -246,7 +278,10 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                   <div className="flex items-center justify-between">
                     <span
                       className="text-sm cursor-pointer flex-1"
-                      onClick={() => setSelectedFolderId(folder.id)}
+                      onClick={() => {
+                        setSelectedFolderId(folder.id);
+                        setIsSidebarOpen(false);
+                      }}
                     >
                       {folder.name}
                     </span>
@@ -297,48 +332,48 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
         </div>
 
         {/* Content */}
-        <div className="flex-1 p-6">
+        <div className="flex-1 p-3 md:p-6">
           {texts.length === 0 ? (
-            <div className="text-center py-24">
-              <svg className={`mx-auto h-16 w-16 mb-6 transition-colors ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
+            <div className="text-center py-16 md:py-24 px-4">
+              <svg className={`mx-auto h-12 md:h-16 w-12 md:w-16 mb-4 md:mb-6 transition-colors ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
                 }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
-              <p className={`text-lg font-light transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+              <p className={`text-base md:text-lg font-light transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
                 }`}>No texts yet</p>
               <p className={`text-sm mt-2 transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                }`}>Click "New Text" to get started</p>
+                }`}>Tap "+" to get started</p>
             </div>
           ) : (
             <div className="max-w-7xl mx-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
                 {texts.map(text => (
                   <div
                     key={text.id}
                     style={{
-                      borderWidth: '3px',
+                      borderWidth: '2px',
                       borderStyle: 'solid',
                       borderColor: isDarkMode ? '#3b82f6' : '#000000'
                     }}
-                    className={`rounded-xl p-4 transition-all group hover:shadow-lg ${isDarkMode
+                    className={`rounded-lg md:rounded-xl p-3 md:p-4 transition-all group hover:shadow-lg ${isDarkMode
                       ? 'bg-gray-800'
                       : 'bg-white'
                       }`}
                   >
-                    <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-start justify-between mb-2 md:mb-3">
                       <div className="flex-1 min-w-0">
-                        <h3 className={`font-semibold text-base truncate transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                        <h3 className={`font-semibold text-sm md:text-base transition-colors ${isDarkMode ? 'text-white' : 'text-black'
                           }`}>
                           {text.title}
                         </h3>
                         {text.artist && (
-                          <p className={`text-sm font-light truncate mt-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                          <p className={`text-xs md:text-sm font-light truncate mt-0.5 md:mt-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
                             }`}>
                             {text.artist}
                           </p>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
+                      <div className="flex items-center gap-0.5 md:gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2">
                         <button
                           onClick={() => handleEditText(text)}
                           className={`p-1.5 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'
@@ -362,9 +397,9 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                         </button>
                       </div>
                     </div>
-                    <p className={`text-sm font-light mb-4 line-clamp-3 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                    <p className={`text-xs md:text-sm font-light mb-3 md:mb-4 line-clamp-2 md:line-clamp-3 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
                       }`}>
-                      {text.content.substring(0, 120)}...
+                      {text.content.substring(0, 100)}...
                     </p>
                     <button
                       onClick={() => onPracticeText(text)}
@@ -373,7 +408,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                         borderStyle: 'solid',
                         borderColor: isDarkMode ? '#ffffff' : '#000000'
                       }}
-                      className={`w-full px-4 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl ${isDarkMode
+                      className={`w-full px-3 md:px-4 py-2 md:py-2.5 text-xs md:text-sm font-bold uppercase tracking-wider transition-colors rounded-lg md:rounded-xl ${isDarkMode
                         ? 'bg-blue-600 text-white hover:bg-blue-700'
                         : 'bg-black text-white hover:bg-gray-800'
                         }`}
