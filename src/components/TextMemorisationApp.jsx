@@ -1192,7 +1192,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         msOverflowStyle: 'none',
                         backgroundColor: isDarkMode ? '#111827' : '#ffffff',
                         padding: '2rem',
-                        paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '17vh' : '54vh') : '5rem') : '2rem'
+                        paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '20vh' : '56vh') : '5rem') : '2rem'
                       }}>
                       <div
                         className={`transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}
@@ -1344,7 +1344,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   {currentTab === 'music' && (
                     <div className="flex-1 overflow-y-auto" style={{
                       backgroundColor: isDarkMode ? '#111827' : '#ffffff',
-                      paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '15vh' : '54vh') : '4rem') : '0'
+                      paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '18vh' : '56vh') : '4rem') : '0'
                     }}>
                       <div className={`max-w-7xl mx-auto transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}>
                         {/* Simple Playback Controls - at the top below nav */}
