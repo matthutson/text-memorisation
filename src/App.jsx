@@ -39,6 +39,7 @@ class ErrorBoundary extends React.Component {
 function App() {
   const [currentView, setCurrentView] = useState('home');
   const [currentText, setCurrentText] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -46,7 +47,21 @@ function App() {
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
+    // Add or remove 'dark' class from document.documentElement
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
   }, [isDarkMode]);
+
+  useEffect(() => {
+    // Set loading to false after initial mount
+    const timer = setTimeout(() => {
+      setIsLoading(false);
+    }, 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   const toggleDarkMode = () => {
     setIsDarkMode(prev => !prev);
@@ -72,6 +87,21 @@ function App() {
       }
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <div className="text-center">
+          <h1 className={`text-4xl font-bold mb-4 transition-colors ${isDarkMode ? 'text-blue-400' : 'text-blue-600'}`}>
+            THE REPETOIRE
+          </h1>
+          <p className={`text-lg transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+            Loading...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>

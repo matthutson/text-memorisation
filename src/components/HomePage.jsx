@@ -9,6 +9,7 @@ import {
   updateFolder,
   deleteFolder
 } from '../utils/storage';
+import QuillEditor from './QuillEditor';
 
 export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode }) {
   const [folders, setFolders] = useState([]);
@@ -331,86 +332,153 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
 
         {/* Content */}
         <div className="flex-1 p-4 md:p-6">
-          {texts.length === 0 ? (
-            <div className="text-center py-16 md:py-24 px-4">
-              <svg className={`mx-auto h-12 md:h-16 w-12 md:w-16 mb-4 md:mb-6 transition-colors ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
-                }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p className={`text-base md:text-lg font-light transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                }`}>No texts yet</p>
-              <p className={`text-sm mt-2 transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                }`}>Tap "+" to get started</p>
-            </div>
-          ) : (
-            <div className="max-w-7xl mx-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 mt-4">
-                {texts.map(text => (
-                  <div
-                    key={text.id}
-                    className={`rounded-2xl p-4 md:p-5 transition-all group hover:shadow-xl border-2 ${isDarkMode
-                      ? 'bg-gray-800 border-blue-500 hover:border-blue-400'
-                      : 'bg-white border-gray-900 hover:border-gray-700'
-                      }`}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1 min-w-0">
-                        <h3 className={`font-bold text-sm md:text-base transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                          }`}>
-                          {text.title}
-                        </h3>
-                        {text.artist && (
-                          <p className={`text-xs md:text-sm font-light truncate mt-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+          {selectedFolderId === 'all' ? (
+            // Show folder cards when "All Texts" is selected
+            allTexts.length === 0 ? (
+              <div className="text-center py-16 md:py-24 px-4">
+                <svg className={`mx-auto h-12 md:h-16 w-12 md:w-16 mb-4 md:mb-6 transition-colors ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
+                  }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className={`text-base md:text-lg font-light transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>No texts yet</p>
+                <p className={`text-sm mt-2 transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                  }`}>Tap "+" to get started</p>
+              </div>
+            ) : (
+              <div className="max-w-7xl mx-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 mt-4">
+                  {folders.map(folder => {
+                    const folderTexts = allTexts.filter(t => t.folderId === folder.id);
+                    return (
+                      <div
+                        key={folder.id}
+                        onClick={() => setSelectedFolderId(folder.id)}
+                        className={`rounded-2xl p-4 md:p-5 transition-all group hover:shadow-xl border-2 cursor-pointer ${isDarkMode
+                          ? 'bg-gray-800 border-blue-500 hover:border-blue-400'
+                          : 'bg-white border-gray-900 hover:border-gray-700'
+                          }`}
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1 min-w-0">
+                            <div className={`mb-3 transition-colors ${isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                              }`}>
+                              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+                              </svg>
+                            </div>
+                            <h3 className={`font-bold text-base md:text-lg transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                              }`}>
+                              {folder.name}
+                            </h3>
+                            <p className={`text-xs md:text-sm font-light mt-2 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                              }`}>
+                              {folderTexts.length} {folderTexts.length === 1 ? 'text' : 'texts'}
+                            </p>
+                          </div>
+                        </div>
+                        {folderTexts.length > 0 && (
+                          <div className={`text-xs font-light transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
                             }`}>
-                            {text.artist}
-                          </p>
+                            {folderTexts.slice(0, 3).map((t, idx) => (
+                              <div key={t.id} className="truncate">
+                                • {t.title}
+                              </div>
+                            ))}
+                            {folderTexts.length > 3 && (
+                              <div className="mt-1">+ {folderTexts.length - 3} more</div>
+                            )}
+                          </div>
                         )}
                       </div>
-                      <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2">
-                        <button
-                          onClick={() => handleEditText(text)}
-                          className={`p-2 rounded-xl transition-all ${isDarkMode
-                            ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
-                            : 'hover:bg-gray-100 text-gray-600 hover:text-black'
-                            }`}
-                          title="Edit"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => handleDeleteText(text.id)}
-                          className={`p-2 rounded-xl transition-all ${isDarkMode
-                            ? 'hover:bg-red-900 text-gray-400 hover:text-red-400'
-                            : 'hover:bg-red-50 text-gray-600 hover:text-red-600'
-                            }`}
-                          title="Delete"
-                        >
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                    <p className={`text-xs md:text-sm font-light mb-4 line-clamp-2 md:line-clamp-3 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>
-                      {text.content.substring(0, 100)}...
-                    </p>
-                    <button
-                      onClick={() => onPracticeText(text)}
-                      className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl shadow-md hover:shadow-lg ${isDarkMode
-                        ? 'bg-blue-600 text-white hover:bg-blue-500'
-                        : 'bg-black text-white hover:bg-gray-800'
+                    );
+                  })}
+                </div>
+              </div>
+            )
+          ) : (
+            // Show text cards when a specific folder is selected
+            texts.length === 0 ? (
+              <div className="text-center py-16 md:py-24 px-4">
+                <svg className={`mx-auto h-12 md:h-16 w-12 md:w-16 mb-4 md:mb-6 transition-colors ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
+                  }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className={`text-base md:text-lg font-light transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                  }`}>No texts in this folder</p>
+                <p className={`text-sm mt-2 transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
+                  }`}>Tap "+" to add a text</p>
+              </div>
+            ) : (
+              <div className="max-w-7xl mx-auto">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 mt-4">
+                  {texts.map(text => (
+                    <div
+                      key={text.id}
+                      className={`rounded-2xl p-4 md:p-5 transition-all group hover:shadow-xl border-2 ${isDarkMode
+                        ? 'bg-gray-800 border-blue-500 hover:border-blue-400'
+                        : 'bg-white border-gray-900 hover:border-gray-700'
                         }`}
                     >
-                      Practice
-                    </button>
-                  </div>
-                ))}
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className={`font-bold text-sm md:text-base transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                            }`}>
+                            {text.title}
+                          </h3>
+                          {text.artist && (
+                            <p className={`text-xs md:text-sm font-light truncate mt-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                              }`}>
+                              {text.artist}
+                            </p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2">
+                          <button
+                            onClick={() => handleEditText(text)}
+                            className={`p-2 rounded-xl transition-all ${isDarkMode
+                              ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
+                              : 'hover:bg-gray-100 text-gray-600 hover:text-black'
+                              }`}
+                            title="Edit"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => handleDeleteText(text.id)}
+                            className={`p-2 rounded-xl transition-all ${isDarkMode
+                              ? 'hover:bg-red-900 text-gray-400 hover:text-red-400'
+                              : 'hover:bg-red-50 text-gray-600 hover:text-red-600'
+                              }`}
+                            title="Delete"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                      <p className={`text-xs md:text-sm font-light mb-4 line-clamp-2 md:line-clamp-3 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>
+                        {text.content.substring(0, 100)}...
+                      </p>
+                      <button
+                        onClick={() => onPracticeText(text)}
+                        className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl shadow-md hover:shadow-lg ${isDarkMode
+                          ? 'bg-blue-600 text-white hover:bg-blue-500'
+                          : 'bg-black text-white hover:bg-gray-800'
+                          }`}
+                      >
+                        Practice
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )
           )}
         </div>
       </div>
@@ -547,15 +615,14 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                 : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
                 }`}
             />
-            <textarea
-              value={newTextContent}
-              onChange={(e) => setNewTextContent(e.target.value)}
-              placeholder="Paste your text here..."
-              className={`w-full h-64 px-4 py-3 border-[1.5px] rounded-xl focus:outline-none resize-none mb-4 font-mono transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                }`}
-            />
+            <div className="mb-4">
+              <QuillEditor
+                value={newTextContent}
+                onChange={setNewTextContent}
+                placeholder="Paste your text here..."
+                isDarkMode={isDarkMode}
+              />
+            </div>
             <select
               value={newTextFolderId}
               onChange={(e) => setNewTextFolderId(e.target.value)}
@@ -642,16 +709,14 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                 : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
                 }`}
             />
-            <textarea
-              value={newTextContent}
-              onChange={(e) => setNewTextContent(e.target.value)}
-              placeholder="Text content"
-              className={`w-full h-64 px-4 py-3 border-[1.5px] rounded-xl focus:outline-none resize-none mb-5 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                }`}
-              style={{ fontFamily: 'monospace' }}
-            />
+            <div className="mb-5">
+              <QuillEditor
+                value={newTextContent}
+                onChange={setNewTextContent}
+                placeholder="Text content"
+                isDarkMode={isDarkMode}
+              />
+            </div>
             <select
               value={editingTextFolderId}
               onChange={(e) => setEditingTextFolderId(e.target.value)}

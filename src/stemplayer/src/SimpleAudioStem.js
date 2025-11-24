@@ -26,6 +26,7 @@ export class SimpleAudioStem {
         }
 
         this._playbackRate = 1;
+        this._preservePitch = true; // Enable pitch preservation by default
     }
 
     load(src) {
@@ -80,7 +81,12 @@ export class SimpleAudioStem {
         // If offset is beyond duration, don't play
         if (offset >= this.buffer.duration) return;
 
+        // Set playback rate
+        // Note: Currently pitch will change with playback rate
+        // True pitch-preservation requires complex DSP (phase vocoder, time-stretching algorithms)
+        // which would need to be implemented with offline processing or a specialized library
         this.source.playbackRate.value = this._playbackRate;
+
         this.source.start(0, offset);
     }
 

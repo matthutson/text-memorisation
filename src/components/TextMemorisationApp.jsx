@@ -696,24 +696,44 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 <span className="sm:hidden">Tracks</span>
               </button>
 
-              {/* Reveal Text Slider - shown when in text tab */}
+              {/* Reveal Text Buttons/Slider - shown when in text tab */}
               {currentTab === 'text' && (
-                <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                   <span className={`text-xs uppercase tracking-wider font-medium hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
                     }`}>Reveal</span>
-                  <div className="w-16 sm:w-20">
-                    <Slider
-                      sliderProps={{
-                        value: visibility,
-                        onChange: (e) => setVisibility(parseInt(e.target.value)),
-                        min: 0,
-                        max: 100,
-                        step: 5
-                      }}
-                    />
+                  {/* Mobile: Show +/- buttons */}
+                  <div className="flex items-center gap-1 sm:hidden">
+                    <button
+                      onClick={() => setVisibility(Math.max(0, visibility - 10))}
+                      className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-black hover:bg-gray-300'}`}
+                    >
+                      <span className="text-lg leading-none">−</span>
+                    </button>
+                    <span className={`text-xs font-medium w-10 text-center transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                      }`}>{visibility}%</span>
+                    <button
+                      onClick={() => setVisibility(Math.min(100, visibility + 10))}
+                      className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-black hover:bg-gray-300'}`}
+                    >
+                      <span className="text-lg leading-none">+</span>
+                    </button>
                   </div>
-                  <span className={`text-xs sm:text-sm font-light w-8 sm:w-10 text-right transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                    }`}>{visibility}%</span>
+                  {/* Desktop: Show slider */}
+                  <div className="hidden sm:flex items-center gap-2">
+                    <div className="w-20">
+                      <Slider
+                        sliderProps={{
+                          value: visibility,
+                          onChange: (e) => setVisibility(parseInt(e.target.value)),
+                          min: 0,
+                          max: 100,
+                          step: 5
+                        }}
+                      />
+                    </div>
+                    <span className={`text-sm font-light w-10 text-right transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                      }`}>{visibility}%</span>
+                  </div>
                 </div>
               )}
 
@@ -1192,7 +1212,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         msOverflowStyle: 'none',
                         backgroundColor: isDarkMode ? '#111827' : '#ffffff',
                         padding: '2rem',
-                        paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '20vh' : '56vh') : '5rem') : '2rem'
+                        paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '20vh' : '52vh') : '5rem') : '2rem'
                       }}>
                       <div
                         className={`transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}
@@ -1344,7 +1364,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   {currentTab === 'music' && (
                     <div className="flex-1 overflow-y-auto" style={{
                       backgroundColor: isDarkMode ? '#111827' : '#ffffff',
-                      paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '18vh' : '56vh') : '4rem') : '0'
+                      paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '18vh' : '52vh') : '4rem') : '0'
                     }}>
                       <div className={`max-w-7xl mx-auto transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}>
                         {/* Simple Playback Controls - at the top below nav */}
