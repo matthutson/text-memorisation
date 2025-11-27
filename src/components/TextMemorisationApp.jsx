@@ -128,6 +128,64 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const processedText = useMemo(() => {
     if (!text) return [];
 
+    // Check if text is HTML (starts with < and contains tags)
+    const isHtml = /^\s*<[^>]+>/.test(text) || text.includes('</p>') || text.includes('</div>');
+
+    if (isHtml) {
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(text, 'text/html');
+
+        // 1. Count total text characters
+        let totalChars = 0;
+        const countWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+        while (countWalker.nextNode()) {
+          totalChars += countWalker.currentNode.textContent.length;
+        }
+
+        // 2. Calculate visible characters
+        const charsToShow = Math.ceil(totalChars * (visibility / 100));
+
+        // 3. Determine visible positions
+        const visiblePositions = new Set();
+        if (charsToShow > 0 && totalChars > 0) {
+          const step = totalChars / charsToShow;
+          for (let i = 0; i < charsToShow; i++) {
+            visiblePositions.add(Math.floor(i * step));
+          }
+        }
+
+        // 4. Apply hiding logic
+        let currentGlobalPos = 0;
+        const processWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+
+        while (processWalker.nextNode()) {
+          const node = processWalker.currentNode;
+          const content = node.textContent;
+          let newContent = '';
+
+          for (let i = 0; i < content.length; i++) {
+            if (content[i].match(/\s/)) {
+              newContent += content[i];
+            } else if (visiblePositions.has(currentGlobalPos + i)) {
+              newContent += content[i];
+            } else {
+              newContent += '·';
+            }
+          }
+
+          node.textContent = newContent;
+          currentGlobalPos += content.length;
+        }
+
+        return { isHtml: true, content: doc.body.innerHTML };
+      } catch (e) {
+        console.error('Error parsing HTML:', e);
+        // Fallback to plain text processing if parsing fails
+      }
+    }
+
+    // Legacy Plain Text Processing
     // Split text into lines
     const lines = text.split('\n');
 
@@ -210,7 +268,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       currentPos += line.length + 1;
     }
 
-    return result;
+    return { isHtml: false, content: result };
   }, [text, visibility]);
 
   const handleStartPractising = () => {
@@ -689,7 +747,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 className={`px-2 md:px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isStemPlayerVisible
                   ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
                   : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
-                }`}
+                  }`}
                 title={isStemPlayerVisible ? 'Hide Backing Tracks' : 'Show Backing Tracks'}
               >
                 <span className="hidden sm:inline">{isStemPlayerVisible ? 'Hide' : 'Show'} Tracks</span>
@@ -744,7 +802,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   className={`px-2 md:px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isAutoAdvancing
                     ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
                     : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
-                  }`}
+                    }`}
                   title={isAutoAdvancing ? 'Stop auto-scroll' : 'Start auto-scroll'}
                 >
                   <span className="hidden sm:inline">Auto</span>
@@ -759,7 +817,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   className={`px-2 md:px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isMetronomeActive
                     ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
                     : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
-                  }`}
+                    }`}
                   title={isMetronomeActive ? 'Stop metronome' : 'Start metronome'}
                 >
                   <span className="hidden sm:inline">Metro</span>
@@ -777,9 +835,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 title="More Settings"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="3" y1="12" x2="21" y2="12"/>
-                  <line x1="3" y1="6" x2="21" y2="6"/>
-                  <line x1="3" y1="18" x2="21" y2="18"/>
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
                 </svg>
               </button>
 
@@ -795,245 +853,245 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     }`}
                   title={isDarkMode ? 'Light mode' : 'Dark mode'}
                 >
-                {isDarkMode ? (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="5" />
-                    <line x1="12" y1="1" x2="12" y2="3" />
-                    <line x1="12" y1="21" x2="12" y2="23" />
-                    <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                    <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                    <line x1="1" y1="12" x2="3" y2="12" />
-                    <line x1="21" y1="12" x2="23" y2="12" />
-                    <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                    <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                  </svg>
-                )}
-              </button>
-
-              {/* Stem Player Toggle */}
-              <button
-                onClick={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
-                className={`px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors ${isStemPlayerVisible
-                  ? (isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black')
-                  : (isDarkMode
-                    ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                    : 'text-gray-600 hover:text-black hover:bg-gray-100')
-                  }`}
-                title={isStemPlayerVisible ? 'Hide Backing Tracks' : 'Show Backing Tracks'}
-              >
-                {isStemPlayerVisible ? 'Hide' : 'Show'} Backing Tracks
-              </button>
-
-              {currentTab === 'text' && (
-                <>
-                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                    }`} />
-
-                  {/* Visibility */}
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <span className={`text-xs uppercase tracking-wider font-medium transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Reveal</span>
-                    <div className="w-20">
-                      <Slider
-                        sliderProps={{
-                          value: visibility,
-                          onChange: (e) => setVisibility(parseInt(e.target.value)),
-                          min: 0,
-                          max: 100,
-                          step: 5
-                        }}
-                      />
-                    </div>
-                    <span className={`text-sm font-light w-10 text-right transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                      }`}>{visibility}%</span>
-                  </div>
-                </>
-              )}
-
-              {currentTab === 'text' && (
-                <>
-                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                    }`} />
-
-                  {/* Text Size */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setFontSize(Math.max(12, fontSize - 2))}
-                      className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                        }`}
-                    >
-                      <span className="text-xs">−</span>
-                    </button>
-                    <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Font Size</span>
-                    <button
-                      onClick={() => setFontSize(Math.min(24, fontSize + 2))}
-                      className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                        }`}
-                    >
-                      <span className="text-xs">+</span>
-                    </button>
-                  </div>
-
-                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                    }`} />
-
-                  {/* Columns */}
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
-                      className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                        }`}
-                    >
-                      <span className="text-xs">−</span>
-                    </button>
-                    <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Column Width</span>
-                    <button
-                      onClick={() => setColumnWidth(Math.max(200, columnWidth - 20))}
-                      className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                        }`}
-                    >
-                      <span className="text-xs">+</span>
-                    </button>
-                  </div>
-
-                  <div className="flex-grow" />
-
-                  {/* Column Navigation */}
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <button
-                      onClick={() => {
-                        if (!scrollContainerRef.current) return;
-                        const container = scrollContainerRef.current;
-                        const columnWithGap = columnWidth + 48;
-                        const newScroll = Math.max(0, container.scrollLeft - columnWithGap);
-                        container.scrollLeft = newScroll;
-                      }}
-                      className={`transition-colors ${isDarkMode ? 'text-white hover:text-gray-400' : 'text-black hover:text-gray-600'
-                        }`}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M15 18l-6-6 6-6" />
-                      </svg>
-                    </button>
-                    <span className={`text-sm font-light hidden sm:inline transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                      }`}>
-                      Column
-                    </span>
-                    <button
-                      onClick={() => {
-                        if (!scrollContainerRef.current) return;
-                        const container = scrollContainerRef.current;
-                        const columnWithGap = columnWidth + 48;
-                        const maxScroll = container.scrollWidth - container.clientWidth;
-                        const newScroll = Math.min(maxScroll, container.scrollLeft + columnWithGap);
-                        container.scrollLeft = newScroll;
-                      }}
-                      className={`transition-colors ${isDarkMode ? 'text-white hover:text-gray-400' : 'text-black hover:text-gray-600'
-                        }`}
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M9 18l6-6-6-6" />
-                      </svg>
-                    </button>
-                  </div>
-
-                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                    }`} />
-
-                  {/* Auto-Advance */}
-                  <div className="flex items-center gap-2 md:gap-3">
-                    <button
-                      onClick={() => setIsAutoAdvancing(!isAutoAdvancing)}
-                      className={`px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors ${isAutoAdvancing
-                        ? (isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-black text-white hover:bg-gray-800')
-                        : (isDarkMode
-                          ? 'border border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                          : 'border border-gray-300 text-black hover:border-black hover:bg-gray-50')
-                        }`}
-                    >
-                      {isAutoAdvancing ? 'Stop' : 'Auto'}
-                    </button>
-                    <span className={`text-xs uppercase tracking-wider font-medium hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Speed</span>
-                    <div className="w-32">
-                      <Slider
-                        sliderProps={{
-                          value: autoScrollSpeed,
-                          onChange: (e) => setAutoScrollSpeed(parseInt(e.target.value)),
-                          min: 1,
-                          max: 10,
-                          step: 1
-                        }}
-                      />
-                    </div>
-                    <span className={`text-sm font-light w-4 text-right tabular-nums transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                      }`}>{autoScrollSpeed}</span>
-                    <span className={`text-xs hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                      }`}>({Math.round((13000 - (autoScrollSpeed * 900)) / 1000)}s)</span>
-                  </div>
-
-                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                    }`} />
-                </>
-              )}
-
-              {/* Metronome */}
-              <div className="flex items-center gap-2 md:gap-3">
-                <button
-                  onClick={() => setIsMetronomeActive(prev => !prev)}
-                  className={`px-3 py-1 text-xs uppercase tracking-wider font-medium min-w-[48px] rounded-xl transition-colors ${isMetronomeActive
-                    ? (isDarkMode ? 'bg-green-700 text-white hover:bg-green-600' : 'bg-green-800 text-white hover:bg-green-900')
-                    : (isDarkMode
-                      ? 'border border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                      : 'border border-gray-300 text-black hover:border-black hover:bg-gray-50')
-                    }`}
-                  title={isMetronomeActive ? 'Stop metronome' : 'Start metronome'}
-                >
-                  {isMetronomeActive ? 'ON' : 'OFF'}
+                  {isDarkMode ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="5" />
+                      <line x1="12" y1="1" x2="12" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="23" />
+                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                      <line x1="1" y1="12" x2="3" y2="12" />
+                      <line x1="21" y1="12" x2="23" y2="12" />
+                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                  )}
                 </button>
-                <input
-                  type="number"
-                  value={metronomeBPM}
-                  onChange={(e) => setMetronomeBPM(Math.max(20, Math.min(250, parseInt(e.target.value) || 120)))}
-                  className={`w-16 px-2 py-1 text-sm text-center border-[1.5px] focus:outline-none transition-colors ${isDarkMode
-                    ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-500'
-                    : 'border-gray-300 bg-white text-black focus:border-black'
+
+                {/* Stem Player Toggle */}
+                <button
+                  onClick={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
+                  className={`px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors ${isStemPlayerVisible
+                    ? (isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black')
+                    : (isDarkMode
+                      ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
+                      : 'text-gray-600 hover:text-black hover:bg-gray-100')
                     }`}
-                  min="20"
-                  max="250"
-                  title="BPM"
-                />
-                <span className={`text-xs hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                  }`}>bpm</span>
-                <input
-                  type="number"
-                  value={metronomeMeter}
-                  onChange={(e) => setMetronomeMeter(Math.max(1, Math.min(12, parseInt(e.target.value) || 4)))}
-                  className={`w-12 px-2 py-1 text-sm text-center border-[1.5px] focus:outline-none transition-colors ${isDarkMode
-                    ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-500'
-                    : 'border-gray-300 bg-white text-black focus:border-black'
-                    }`}
-                  min="1"
-                  max="12"
-                  title="Time signature (beats per measure)"
-                />
-                <span className={`text-xs hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                  }`}>/4</span>
-              </div>
+                  title={isStemPlayerVisible ? 'Hide Backing Tracks' : 'Show Backing Tracks'}
+                >
+                  {isStemPlayerVisible ? 'Hide' : 'Show'} Backing Tracks
+                </button>
+
+                {currentTab === 'text' && (
+                  <>
+                    <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                      }`} />
+
+                    {/* Visibility */}
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <span className={`text-xs uppercase tracking-wider font-medium transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>Reveal</span>
+                      <div className="w-20">
+                        <Slider
+                          sliderProps={{
+                            value: visibility,
+                            onChange: (e) => setVisibility(parseInt(e.target.value)),
+                            min: 0,
+                            max: 100,
+                            step: 5
+                          }}
+                        />
+                      </div>
+                      <span className={`text-sm font-light w-10 text-right transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                        }`}>{visibility}%</span>
+                    </div>
+                  </>
+                )}
+
+                {currentTab === 'text' && (
+                  <>
+                    <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                      }`} />
+
+                    {/* Text Size */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setFontSize(Math.max(12, fontSize - 2))}
+                        className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
+                          ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
+                          : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                          }`}
+                      >
+                        <span className="text-xs">−</span>
+                      </button>
+                      <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>Font Size</span>
+                      <button
+                        onClick={() => setFontSize(Math.min(24, fontSize + 2))}
+                        className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
+                          ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
+                          : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                          }`}
+                      >
+                        <span className="text-xs">+</span>
+                      </button>
+                    </div>
+
+                    <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                      }`} />
+
+                    {/* Columns */}
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
+                        className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
+                          ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
+                          : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                          }`}
+                      >
+                        <span className="text-xs">−</span>
+                      </button>
+                      <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>Column Width</span>
+                      <button
+                        onClick={() => setColumnWidth(Math.max(200, columnWidth - 20))}
+                        className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
+                          ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
+                          : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                          }`}
+                      >
+                        <span className="text-xs">+</span>
+                      </button>
+                    </div>
+
+                    <div className="flex-grow" />
+
+                    {/* Column Navigation */}
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <button
+                        onClick={() => {
+                          if (!scrollContainerRef.current) return;
+                          const container = scrollContainerRef.current;
+                          const columnWithGap = columnWidth + 48;
+                          const newScroll = Math.max(0, container.scrollLeft - columnWithGap);
+                          container.scrollLeft = newScroll;
+                        }}
+                        className={`transition-colors ${isDarkMode ? 'text-white hover:text-gray-400' : 'text-black hover:text-gray-600'
+                          }`}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M15 18l-6-6 6-6" />
+                        </svg>
+                      </button>
+                      <span className={`text-sm font-light hidden sm:inline transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                        }`}>
+                        Column
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (!scrollContainerRef.current) return;
+                          const container = scrollContainerRef.current;
+                          const columnWithGap = columnWidth + 48;
+                          const maxScroll = container.scrollWidth - container.clientWidth;
+                          const newScroll = Math.min(maxScroll, container.scrollLeft + columnWithGap);
+                          container.scrollLeft = newScroll;
+                        }}
+                        className={`transition-colors ${isDarkMode ? 'text-white hover:text-gray-400' : 'text-black hover:text-gray-600'
+                          }`}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M9 18l6-6-6-6" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                      }`} />
+
+                    {/* Auto-Advance */}
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <button
+                        onClick={() => setIsAutoAdvancing(!isAutoAdvancing)}
+                        className={`px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors ${isAutoAdvancing
+                          ? (isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-black text-white hover:bg-gray-800')
+                          : (isDarkMode
+                            ? 'border border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                            : 'border border-gray-300 text-black hover:border-black hover:bg-gray-50')
+                          }`}
+                      >
+                        {isAutoAdvancing ? 'Stop' : 'Auto'}
+                      </button>
+                      <span className={`text-xs uppercase tracking-wider font-medium hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>Speed</span>
+                      <div className="w-32">
+                        <Slider
+                          sliderProps={{
+                            value: autoScrollSpeed,
+                            onChange: (e) => setAutoScrollSpeed(parseInt(e.target.value)),
+                            min: 1,
+                            max: 10,
+                            step: 1
+                          }}
+                        />
+                      </div>
+                      <span className={`text-sm font-light w-4 text-right tabular-nums transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                        }`}>{autoScrollSpeed}</span>
+                      <span className={`text-xs hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                        }`}>({Math.round((13000 - (autoScrollSpeed * 900)) / 1000)}s)</span>
+                    </div>
+
+                    <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
+                      }`} />
+                  </>
+                )}
+
+                {/* Metronome */}
+                <div className="flex items-center gap-2 md:gap-3">
+                  <button
+                    onClick={() => setIsMetronomeActive(prev => !prev)}
+                    className={`px-3 py-1 text-xs uppercase tracking-wider font-medium min-w-[48px] rounded-xl transition-colors ${isMetronomeActive
+                      ? (isDarkMode ? 'bg-green-700 text-white hover:bg-green-600' : 'bg-green-800 text-white hover:bg-green-900')
+                      : (isDarkMode
+                        ? 'border border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                        : 'border border-gray-300 text-black hover:border-black hover:bg-gray-50')
+                      }`}
+                    title={isMetronomeActive ? 'Stop metronome' : 'Start metronome'}
+                  >
+                    {isMetronomeActive ? 'ON' : 'OFF'}
+                  </button>
+                  <input
+                    type="number"
+                    value={metronomeBPM}
+                    onChange={(e) => setMetronomeBPM(Math.max(20, Math.min(250, parseInt(e.target.value) || 120)))}
+                    className={`w-16 px-2 py-1 text-sm text-center border-[1.5px] focus:outline-none transition-colors ${isDarkMode
+                      ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-500'
+                      : 'border-gray-300 bg-white text-black focus:border-black'
+                      }`}
+                    min="20"
+                    max="250"
+                    title="BPM"
+                  />
+                  <span className={`text-xs hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                    }`}>bpm</span>
+                  <input
+                    type="number"
+                    value={metronomeMeter}
+                    onChange={(e) => setMetronomeMeter(Math.max(1, Math.min(12, parseInt(e.target.value) || 4)))}
+                    className={`w-12 px-2 py-1 text-sm text-center border-[1.5px] focus:outline-none transition-colors ${isDarkMode
+                      ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-500'
+                      : 'border-gray-300 bg-white text-black focus:border-black'
+                      }`}
+                    min="1"
+                    max="12"
+                    title="Time signature (beats per measure)"
+                  />
+                  <span className={`text-xs hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
+                    }`}>/4</span>
+                </div>
               </div> {/* Close desktop controls wrapper */}
             </div>
 
@@ -1044,9 +1102,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
                   onClick={() => setIsMobileControlsOpen(false)}
                 />
-                <div className={`md:hidden fixed bottom-0 left-0 right-0 z-50 p-4 rounded-t-2xl max-h-[70vh] overflow-y-auto transition-colors ${
-                  isDarkMode ? 'bg-gray-800' : 'bg-white'
-                }`}>
+                <div className={`md:hidden fixed bottom-0 left-0 right-0 z-50 p-4 rounded-t-2xl max-h-[70vh] overflow-y-auto transition-colors ${isDarkMode ? 'bg-gray-800' : 'bg-white'
+                  }`}>
                   <div className="flex items-center justify-between mb-4 pb-3 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
                     <h3 className={`font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>Settings</h3>
                     <button
@@ -1054,8 +1111,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       className={`p-1 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}`}
                     >
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
                       </svg>
                     </button>
                   </div>
@@ -1083,7 +1140,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                               className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
                                 ? 'bg-gray-700 text-white hover:bg-gray-600'
                                 : 'bg-gray-200 text-black hover:bg-gray-300'
-                              }`}
+                                }`}
                             >
                               −
                             </button>
@@ -1093,7 +1150,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                               className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
                                 ? 'bg-gray-700 text-white hover:bg-gray-600'
                                 : 'bg-gray-200 text-black hover:bg-gray-300'
-                              }`}
+                                }`}
                             >
                               +
                             </button>
@@ -1109,7 +1166,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                               className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
                                 ? 'bg-gray-700 text-white hover:bg-gray-600'
                                 : 'bg-gray-200 text-black hover:bg-gray-300'
-                              }`}
+                                }`}
                             >
                               −
                             </button>
@@ -1119,7 +1176,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                               className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
                                 ? 'bg-gray-700 text-white hover:bg-gray-600'
                                 : 'bg-gray-200 text-black hover:bg-gray-300'
-                              }`}
+                                }`}
                             >
                               +
                             </button>
@@ -1156,7 +1213,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                               className={`w-20 px-3 py-2 text-sm text-center rounded-lg focus:outline-none transition-colors ${isDarkMode
                                 ? 'bg-gray-700 text-white'
                                 : 'bg-gray-200 text-black'
-                              }`}
+                                }`}
                               min="20"
                               max="250"
                             />
@@ -1248,6 +1305,35 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                                 {textData.artist}
                               </div>
                             )}
+                            {/* External Links */}
+                            <div className="flex gap-3 mt-4">
+                              {/* Ultimate Guitar Button */}
+                              <a
+                                href={textData.ultimateGuitarUrl || '#'}
+                                target={textData.ultimateGuitarUrl ? '_blank' : '_self'}
+                                rel="noopener noreferrer"
+                                className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider rounded-xl border-[1.5px] transition-all shadow-md ${textData.ultimateGuitarUrl
+                                    ? (isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-lg' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-lg')
+                                    : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed')
+                                  }`}
+                                onClick={(e) => !textData.ultimateGuitarUrl && e.preventDefault()}
+                              >
+                                Ultimate Guitar
+                              </a>
+                              {/* Soundslice Button */}
+                              <a
+                                href={textData.soundsliceUrl || '#'}
+                                target={textData.soundsliceUrl ? '_blank' : '_self'}
+                                rel="noopener noreferrer"
+                                className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider rounded-xl border-[1.5px] transition-all shadow-md ${textData.soundsliceUrl
+                                    ? (isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-lg' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-lg')
+                                    : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed')
+                                  }`}
+                                onClick={(e) => !textData.soundsliceUrl && e.preventDefault()}
+                              >
+                                Soundslice
+                              </a>
+                            </div>
                           </div>
                         )}
                         <div style={{
@@ -1258,7 +1344,11 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                           fontWeight: '300',
                           whiteSpace: 'pre-wrap'
                         }}>
-                          {processedText}
+                          {processedText.isHtml ? (
+                            <div dangerouslySetInnerHTML={{ __html: processedText.content }} />
+                          ) : (
+                            processedText.content
+                          )}
                         </div>
 
                         {/* Reference Material Section */}
@@ -1511,7 +1601,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                             }`}
                         >
                           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polygon points="5 3 19 12 5 21 5 3"/>
+                            <polygon points="5 3 19 12 5 21 5 3" />
                           </svg>
                           <span className="text-sm font-medium">Load YouTube Video</span>
                         </button>
@@ -1528,8 +1618,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                             title="Hide video"
                           >
                             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <line x1="18" y1="6" x2="6" y2="18"/>
-                              <line x1="6" y1="6" x2="18" y2="18"/>
+                              <line x1="18" y1="6" x2="6" y2="18" />
+                              <line x1="6" y1="6" x2="18" y2="18" />
                             </svg>
                           </button>
                         </div>

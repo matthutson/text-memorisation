@@ -120,6 +120,8 @@ export const getTexts = async (folderId = null) => {
     imageData: text.image_data,
     musicXML: text.music_xml,
     stems: text.stems,
+    ultimateGuitarUrl: text.ultimate_guitar_url,
+    soundsliceUrl: text.soundslice_url,
     folderId: text.folder_id,
     createdAt: text.created_at,
     updatedAt: text.updated_at
@@ -148,6 +150,8 @@ export const getText = async (id) => {
     imageData: data.image_data,
     musicXML: data.music_xml,
     stems: data.stems,
+    ultimateGuitarUrl: data.ultimate_guitar_url,
+    soundsliceUrl: data.soundslice_url,
     folderId: data.folder_id,
     createdAt: data.created_at,
     updatedAt: data.updated_at
@@ -163,7 +167,9 @@ export const createText = async (
   strummingPattern = '',
   imageData = '',
   musicXML = '',
-  stems = []
+  stems = [],
+  ultimateGuitarUrl = '',
+  soundsliceUrl = ''
 ) => {
   const newText = {
     id: `text-${Date.now()}`,
@@ -175,6 +181,8 @@ export const createText = async (
     image_data: imageData,
     music_xml: musicXML,
     stems,
+    ultimate_guitar_url: ultimateGuitarUrl,
+    soundslice_url: soundsliceUrl,
     folder_id: folderId,
     created_at: Date.now(),
     updated_at: Date.now()
@@ -201,6 +209,8 @@ export const createText = async (
     imageData: data.image_data,
     musicXML: data.music_xml,
     stems: data.stems,
+    ultimateGuitarUrl: data.ultimate_guitar_url,
+    soundsliceUrl: data.soundslice_url,
     folderId: data.folder_id,
     createdAt: data.created_at,
     updatedAt: data.updated_at
@@ -221,6 +231,8 @@ export const updateText = async (id, updates) => {
   if (updates.imageData !== undefined) dbUpdates.image_data = updates.imageData;
   if (updates.musicXML !== undefined) dbUpdates.music_xml = updates.musicXML;
   if (updates.stems !== undefined) dbUpdates.stems = updates.stems;
+  if (updates.ultimateGuitarUrl !== undefined) dbUpdates.ultimate_guitar_url = updates.ultimateGuitarUrl;
+  if (updates.soundsliceUrl !== undefined) dbUpdates.soundslice_url = updates.soundsliceUrl;
   if (updates.folderId !== undefined) dbUpdates.folder_id = updates.folderId;
 
   const { data, error } = await supabase
@@ -245,6 +257,8 @@ export const updateText = async (id, updates) => {
     imageData: data.image_data,
     musicXML: data.music_xml,
     stems: data.stems,
+    ultimateGuitarUrl: data.ultimate_guitar_url,
+    soundsliceUrl: data.soundslice_url,
     folderId: data.folder_id,
     createdAt: data.created_at,
     updatedAt: data.updated_at

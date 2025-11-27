@@ -7,4 +7,5 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables. Please check your .env file.');
 }
 
+console.log('Supabase Anon Key prefix:', supabaseAnonKey ? supabaseAnonKey.substring(0, 10) : 'undefined');
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);

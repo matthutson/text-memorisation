@@ -24,6 +24,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
   const [newItemName, setNewItemName] = useState('');
   const [newTextArtist, setNewTextArtist] = useState('');
   const [newTextYoutubeUrl, setNewTextYoutubeUrl] = useState('');
+  const [newTextUltimateGuitarUrl, setNewTextUltimateGuitarUrl] = useState('');
+  const [newTextSoundsliceUrl, setNewTextSoundsliceUrl] = useState('');
   const [newTextContent, setNewTextContent] = useState('');
   const [newFolderName, setNewFolderName] = useState('');
   const [newTextFolderId, setNewTextFolderId] = useState('default');
@@ -50,10 +52,24 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
     if (newItemName.trim() && newTextContent.trim()) {
       // Use selected folder if valid, otherwise default
       const folderId = newTextFolderId || (selectedFolderId === 'all' ? 'default' : selectedFolderId);
-      await createText(newItemName.trim(), newTextContent.trim(), folderId, newTextArtist.trim(), newTextYoutubeUrl.trim(), '', '');
+      await createText(
+        newItemName.trim(),
+        newTextContent.trim(),
+        folderId,
+        newTextArtist.trim(),
+        newTextYoutubeUrl.trim(),
+        '',
+        '',
+        '',
+        [],
+        newTextUltimateGuitarUrl.trim(),
+        newTextSoundsliceUrl.trim()
+      );
       setNewItemName('');
       setNewTextArtist('');
       setNewTextYoutubeUrl('');
+      setNewTextUltimateGuitarUrl('');
+      setNewTextSoundsliceUrl('');
       setNewTextContent('');
       setNewTextFolderId('default');
       setShowNewTextModal(false);
@@ -101,6 +117,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
     setNewItemName(text.title);
     setNewTextArtist(text.artist || '');
     setNewTextYoutubeUrl(text.youtubeUrl || '');
+    setNewTextUltimateGuitarUrl(text.ultimateGuitarUrl || '');
+    setNewTextSoundsliceUrl(text.soundsliceUrl || '');
     setNewTextContent(text.content);
     setEditingTextFolderId(text.folderId || 'default');
     setShowEditModal(true);
@@ -112,6 +130,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
         title: newItemName,
         artist: newTextArtist,
         youtubeUrl: newTextYoutubeUrl,
+        ultimateGuitarUrl: newTextUltimateGuitarUrl,
+        soundsliceUrl: newTextSoundsliceUrl,
         content: newTextContent,
         folderId: editingTextFolderId
       });
@@ -119,6 +139,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
       setNewItemName('');
       setNewTextArtist('');
       setNewTextYoutubeUrl('');
+      setNewTextUltimateGuitarUrl('');
+      setNewTextSoundsliceUrl('');
       setNewTextContent('');
       setShowEditModal(false);
       await loadData();
@@ -153,9 +175,9 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
             aria-label="Toggle menu"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="12" x2="21" y2="12"/>
-              <line x1="3" y1="6" x2="21" y2="6"/>
-              <line x1="3" y1="18" x2="21" y2="18"/>
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="18" x2="21" y2="18" />
             </svg>
           </button>
           <h1 className={`text-lg md:text-2xl font-bold uppercase tracking-tight transition-colors ${isDarkMode ? 'text-white' : 'text-black'
@@ -461,10 +483,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                           </button>
                         </div>
                       </div>
-                      <p className={`text-xs md:text-sm font-light mb-4 line-clamp-2 md:line-clamp-3 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>
-                        {text.content.substring(0, 100)}...
-                      </p>
+
                       <button
                         onClick={() => onPracticeText(text)}
                         className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl shadow-md hover:shadow-lg ${isDarkMode
@@ -484,285 +503,341 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
       </div>
 
       {/* New Folder Modal */}
-      {showNewFolderModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-            }`}>
-            <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-              }`}>New Folder</h3>
-            <input
-              type="text"
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="Folder name"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                }`}
-              autoFocus
-            />
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowNewFolderModal(false);
-                  setNewFolderName('');
-                }}
-                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
-                  ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                  : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+      {
+        showNewFolderModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+              }`}>
+              <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                }`}>New Folder</h3>
+              <input
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Folder name"
+                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
                   }`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateFolder}
-                disabled={!newFolderName.trim()}
-                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
-                  ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                  : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                  }`}
-              >
-                Create
-              </button>
+                autoFocus
+              />
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowNewFolderModal(false);
+                    setNewFolderName('');
+                  }}
+                  className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
+                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateFolder}
+                  disabled={!newFolderName.trim()}
+                  className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
+                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
+                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
+                    }`}
+                >
+                  Create
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Edit Folder Modal */}
-      {showEditFolderModal && editingFolder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-            }`}>
-            <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-              }`}>Edit Folder</h3>
-            <input
-              type="text"
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="Folder name"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                }`}
-              autoFocus
-            />
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowEditFolderModal(false);
-                  setEditingFolder(null);
-                  setNewFolderName('');
-                }}
-                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
-                  ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                  : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+      {
+        showEditFolderModal && editingFolder && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+              }`}>
+              <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                }`}>Edit Folder</h3>
+              <input
+                type="text"
+                value={newFolderName}
+                onChange={(e) => setNewFolderName(e.target.value)}
+                placeholder="Folder name"
+                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
                   }`}
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveFolder}
-                disabled={!newFolderName.trim()}
-                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
-                  ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                  : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                  }`}
-              >
-                Save
-              </button>
+                autoFocus
+              />
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowEditFolderModal(false);
+                    setEditingFolder(null);
+                    setNewFolderName('');
+                  }}
+                  className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
+                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveFolder}
+                  disabled={!newFolderName.trim()}
+                  className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
+                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
+                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
+                    }`}
+                >
+                  Save
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* New Text Modal */}
-      {showNewTextModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div
-            className={`rounded-3xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-              }`}>
-            <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-              }`}>New Text</h3>
-            <input
-              type="text"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              placeholder="Title"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                }`}
-              autoFocus
-            />
-            <input
-              type="text"
-              value={newTextArtist}
-              onChange={(e) => setNewTextArtist(e.target.value)}
-              placeholder="Artist (optional)"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                }`}
-            />
-            <input
-              type="url"
-              value={newTextYoutubeUrl}
-              onChange={(e) => setNewTextYoutubeUrl(e.target.value)}
-              placeholder="YouTube URL (optional)"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                }`}
-            />
-            <div className="mb-4">
-              <QuillEditor
-                value={newTextContent}
-                onChange={setNewTextContent}
-                placeholder="Paste your text here..."
-                isDarkMode={isDarkMode}
+      {
+        showNewTextModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div
+              className={`rounded-3xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
+                }`}>
+              <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                }`}>New Text</h3>
+              <input
+                type="text"
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+                placeholder="Title"
+                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                  }`}
+                autoFocus
               />
-            </div>
-            <select
-              value={newTextFolderId}
-              onChange={(e) => setNewTextFolderId(e.target.value)}
-              className={`w-full px-4 py-3 border-[5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black focus:border-black'
-                }`}
-            >
-              <option value="default">Uncategorized</option>
-              {folders.filter(f => f.id !== 'default').map((folder) => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.name}
-                </option>
-              ))}
-            </select>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowNewTextModal(false);
-                  setNewItemName('');
-                  setNewTextArtist('');
-                  setNewTextYoutubeUrl('');
-                  setNewTextContent('');
-                }}
-                className={`px-5 py-2.5 rounded-xl border-[1.5px] text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
-                  ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                  : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+              <input
+                type="text"
+                value={newTextArtist}
+                onChange={(e) => setNewTextArtist(e.target.value)}
+                placeholder="Artist (optional)"
+                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                  }`}
+              />
+              <input
+                type="url"
+                value={newTextYoutubeUrl}
+                onChange={(e) => setNewTextYoutubeUrl(e.target.value)}
+                placeholder="YouTube URL (optional)"
+                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                  }`}
+              />
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <input
+                  type="url"
+                  value={newTextUltimateGuitarUrl}
+                  onChange={(e) => setNewTextUltimateGuitarUrl(e.target.value)}
+                  placeholder="Ultimate Guitar URL (optional)"
+                  className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none transition-colors ${isDarkMode
+                    ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                    : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                    }`}
+                />
+                <input
+                  type="url"
+                  value={newTextSoundsliceUrl}
+                  onChange={(e) => setNewTextSoundsliceUrl(e.target.value)}
+                  placeholder="Soundslice URL (optional)"
+                  className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none transition-colors ${isDarkMode
+                    ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                    : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                    }`}
+                />
+              </div>
+              <div className="mb-4">
+                <QuillEditor
+                  value={newTextContent}
+                  onChange={setNewTextContent}
+                  placeholder="Paste your text here..."
+                  isDarkMode={isDarkMode}
+                />
+              </div>
+              <select
+                value={newTextFolderId}
+                onChange={(e) => setNewTextFolderId(e.target.value)}
+                className={`w-full px-4 py-3 border-[5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black focus:border-black'
                   }`}
               >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateText}
-                disabled={!newItemName.trim() || !newTextContent.trim()}
-                className={`px-5 py-2.5 rounded-xl border-[1.5px] text-sm font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
-                  ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                  : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                  }`}
-              >
-                Create
-              </button>
+                <option value="default">Uncategorized</option>
+                {folders.filter(f => f.id !== 'default').map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowNewTextModal(false);
+                    setNewItemName('');
+                    setNewTextArtist('');
+                    setNewTextYoutubeUrl('');
+                    setNewTextUltimateGuitarUrl('');
+                    setNewTextSoundsliceUrl('');
+                    setNewTextContent('');
+                  }}
+                  className={`px-5 py-2.5 rounded-xl border-[1.5px] text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
+                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateText}
+                  disabled={!newItemName.trim() || !newTextContent.trim()}
+                  className={`px-5 py-2.5 rounded-xl border-[1.5px] text-sm font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
+                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
+                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
+                    }`}
+                >
+                  Create
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* Edit Modal */}
-      {showEditModal && editingItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-          <div className={`rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-            }`}>
-            <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+      {
+        showEditModal && editingItem && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className={`rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
               }`}>
-              Edit Text
-            </h3>
-            <input
-              type="text"
-              value={newItemName}
-              onChange={(e) => setNewItemName(e.target.value)}
-              placeholder="Title"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                }`}
-              autoFocus
-            />
-            <input
-              type="text"
-              value={newTextArtist}
-              onChange={(e) => setNewTextArtist(e.target.value)}
-              placeholder="Artist (optional)"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                }`}
-            />
-            <input
-              type="url"
-              value={newTextYoutubeUrl}
-              onChange={(e) => setNewTextYoutubeUrl(e.target.value)}
-              placeholder="YouTube URL (optional)"
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                }`}
-            />
-            <div className="mb-5">
-              <QuillEditor
-                value={newTextContent}
-                onChange={setNewTextContent}
-                placeholder="Text content"
-                isDarkMode={isDarkMode}
+              <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                }`}>
+                Edit Text
+              </h3>
+              <input
+                type="text"
+                value={newItemName}
+                onChange={(e) => setNewItemName(e.target.value)}
+                placeholder="Title"
+                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                  }`}
+                autoFocus
               />
-            </div>
-            <select
-              value={editingTextFolderId}
-              onChange={(e) => setEditingTextFolderId(e.target.value)}
-              className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
-                ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-400'
-                : 'border-gray-300 bg-white text-black focus:border-black'
-                }`}
-            >
-              <option value="default">Uncategorized</option>
-              {folders.filter(f => f.id !== 'default').map((folder) => (
-                <option key={folder.id} value={folder.id}>
-                  {folder.name}
-                </option>
-              ))}
-            </select>
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => {
-                  setShowEditModal(false);
-                  setEditingItem(null);
-                  setNewItemName('');
-                  setNewTextArtist('');
-                  setNewTextYoutubeUrl('');
-                  setNewTextContent('');
-                }}
-                className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
-                  ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                  : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+              <input
+                type="text"
+                value={newTextArtist}
+                onChange={(e) => setNewTextArtist(e.target.value)}
+                placeholder="Artist (optional)"
+                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                  }`}
+              />
+              <input
+                type="url"
+                value={newTextYoutubeUrl}
+                onChange={(e) => setNewTextYoutubeUrl(e.target.value)}
+                placeholder="YouTube URL (optional)"
+                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                  }`}
+              />
+              <div className="grid grid-cols-2 gap-4 mb-3">
+                <input
+                  type="url"
+                  value={newTextUltimateGuitarUrl}
+                  onChange={(e) => setNewTextUltimateGuitarUrl(e.target.value)}
+                  placeholder="Ultimate Guitar URL (optional)"
+                  className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none transition-colors ${isDarkMode
+                    ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                    : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                    }`}
+                />
+                <input
+                  type="url"
+                  value={newTextSoundsliceUrl}
+                  onChange={(e) => setNewTextSoundsliceUrl(e.target.value)}
+                  placeholder="Soundslice URL (optional)"
+                  className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none transition-colors ${isDarkMode
+                    ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
+                    : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
+                    }`}
+                />
+              </div>
+              <div className="mb-5">
+                <QuillEditor
+                  value={newTextContent}
+                  onChange={setNewTextContent}
+                  placeholder="Text content"
+                  isDarkMode={isDarkMode}
+                />
+              </div>
+              <select
+                value={editingTextFolderId}
+                onChange={(e) => setEditingTextFolderId(e.target.value)}
+                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
+                  ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-400'
+                  : 'border-gray-300 bg-white text-black focus:border-black'
                   }`}
               >
-                Cancel
-              </button>
-              <button
-                onClick={handleSaveEdit}
-                disabled={!newItemName.trim() || !newTextContent.trim()}
-                className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
-                  ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                  : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                  }`}
-              >
-                Save
-              </button>
+                <option value="default">Uncategorized</option>
+                {folders.filter(f => f.id !== 'default').map((folder) => (
+                  <option key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </option>
+                ))}
+              </select>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setEditingItem(null);
+                    setNewItemName('');
+                    setNewTextArtist('');
+                    setNewTextYoutubeUrl('');
+                    setNewTextUltimateGuitarUrl('');
+                    setNewTextSoundsliceUrl('');
+                    setNewTextContent('');
+                  }}
+                  className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
+                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
+                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
+                    }`}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={!newItemName.trim() || !newTextContent.trim()}
+                  className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
+                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
+                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
+                    }`}
+                >
+                  Save
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }
