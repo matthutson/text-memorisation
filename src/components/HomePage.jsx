@@ -484,6 +484,38 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                         </div>
                       </div>
 
+                      {/* External Links */}
+                      {(text.ultimateGuitarUrl || text.soundsliceUrl) && (
+                        <div className="flex gap-2 mb-3">
+                          {text.ultimateGuitarUrl && (
+                            <a
+                              href={text.ultimateGuitarUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm ${isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md'
+                                }`}
+                              style={{ textDecoration: 'none' }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Ultimate Guitar
+                            </a>
+                          )}
+                          {text.soundsliceUrl && (
+                            <a
+                              href={text.soundsliceUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm ${isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md'
+                                }`}
+                              style={{ textDecoration: 'none' }}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Soundslice
+                            </a>
+                          )}
+                        </div>
+                      )}
+
                       <button
                         onClick={() => onPracticeText(text)}
                         className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl shadow-md hover:shadow-lg ${isDarkMode

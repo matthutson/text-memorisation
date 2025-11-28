@@ -121,8 +121,12 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
             for (const file of files) {
                 console.log('[StemPlayerWrapper] Uploading file:', file.name, 'size:', file.size, 'type:', file.type);
 
+                // Sanitize filename to remove invalid characters
+                // Supabase Storage doesn't allow: [ ] and other special characters
+                const sanitizedFileName = file.name.replace(/[\[\]]/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_');
+
                 // 1. Upload file to Supabase Storage
-                const fileName = `${textId}/${Date.now()}-${file.name}`;
+                const fileName = `${textId}/${Date.now()}-${sanitizedFileName}`;
                 console.log('[StemPlayerWrapper] Storage path:', fileName);
 
                 const { data, error } = await supabase.storage
@@ -267,9 +271,8 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
     };
 
     return (
-        <div className={`flex flex-col h-full border-r w-full flex-shrink-0 transition-colors ${
-            !isVisible ? 'hidden' : ''
-        } ${isDarkMode ? 'bg-gray-900 text-white border-gray-800' : 'bg-gray-50 text-black border-gray-200'
+        <div className={`flex flex-col h-full border-r w-full flex-shrink-0 transition-colors ${!isVisible ? 'hidden' : ''
+            } ${isDarkMode ? 'bg-gray-900 text-white border-gray-800' : 'bg-gray-50 text-black border-gray-200'
             }`}>
             <div className={`p-4 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
                 <h2 className="text-sm font-bold uppercase tracking-wider mb-4">Backing Tracks</h2>
@@ -366,22 +369,20 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
                         <div className="grid grid-cols-2 gap-2 mb-2">
                             <button
                                 onClick={handleSetLoopPointA}
-                                className={`py-2 px-3 text-xs font-medium uppercase tracking-wider transition-colors ${
-                                    loopPointA !== null
+                                className={`py-2 px-3 text-xs font-medium uppercase tracking-wider transition-colors ${loopPointA !== null
                                         ? (isDarkMode ? 'bg-blue-900/50 text-blue-300 border border-blue-700' : 'bg-blue-100 text-blue-700 border border-blue-300')
                                         : (isDarkMode ? 'bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-300')
-                                }`}
+                                    }`}
                             >
                                 Set A: {formatTime(loopPointA)}
                             </button>
                             <button
                                 onClick={handleSetLoopPointB}
                                 disabled={loopPointA === null}
-                                className={`py-2 px-3 text-xs font-medium uppercase tracking-wider transition-colors ${
-                                    loopPointB !== null
+                                className={`py-2 px-3 text-xs font-medium uppercase tracking-wider transition-colors ${loopPointB !== null
                                         ? (isDarkMode ? 'bg-blue-900/50 text-blue-300 border border-blue-700' : 'bg-blue-100 text-blue-700 border border-blue-300')
                                         : (isDarkMode ? 'bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed' : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed')
-                                }`}
+                                    }`}
                             >
                                 Set B: {formatTime(loopPointB)}
                             </button>
@@ -393,11 +394,10 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
                                     <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Loop enabled</span>
                                     <button
                                         onClick={() => setIsABLoopEnabled(!isABLoopEnabled)}
-                                        className={`px-3 py-1 rounded font-medium uppercase tracking-wider transition-colors ${
-                                            isABLoopEnabled
+                                        className={`px-3 py-1 rounded font-medium uppercase tracking-wider transition-colors ${isABLoopEnabled
                                                 ? (isDarkMode ? 'bg-green-700 text-white' : 'bg-green-600 text-white')
                                                 : (isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-300 text-gray-700')
-                                        }`}
+                                            }`}
                                     >
                                         {isABLoopEnabled ? 'ON' : 'OFF'}
                                     </button>

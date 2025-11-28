@@ -136,9 +136,28 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         const parser = new DOMParser();
         const doc = parser.parseFromString(text, 'text/html');
 
-        // 1. Count total text characters
+        // Detect and mark chord lines in HTML content
+        const paragraphs = doc.body.querySelectorAll('p, div');
+        paragraphs.forEach(p => {
+          const textContent = p.textContent.trim();
+          if (textContent && isChordLine(textContent)) {
+            p.setAttribute('data-chord-line', 'true');
+            p.style.color = '#3b82f6';
+            p.style.fontWeight = '400';
+          }
+        });
+
+        // 1. Count total text characters (excluding chord lines)
         let totalChars = 0;
-        const countWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+        const countWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: (node) => {
+            const parent = node.parentElement;
+            if (parent && parent.closest('[data-chord-line="true"]')) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        }, false);
         while (countWalker.nextNode()) {
           totalChars += countWalker.currentNode.textContent.length;
         }
@@ -155,9 +174,17 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
           }
         }
 
-        // 4. Apply hiding logic
+        // 4. Apply hiding logic (skip chord lines)
         let currentGlobalPos = 0;
-        const processWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+        const processWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+          acceptNode: (node) => {
+            const parent = node.parentElement;
+            if (parent && parent.closest('[data-chord-line="true"]')) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        }, false);
 
         while (processWalker.nextNode()) {
           const node = processWalker.currentNode;
@@ -795,6 +822,64 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 </div>
               )}
 
+              {/* Font Size & Column Width - Desktop only, shown when in text tab */}
+              {currentTab === 'text' && (
+                <>
+                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+
+                  {/* Font Size */}
+                  <div className="hidden md:flex items-center gap-2">
+                    <button
+                      onClick={() => setFontSize(Math.max(12, fontSize - 2))}
+                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
+                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                        }`}
+                    >
+                      <span className="text-sm font-bold">−</span>
+                    </button>
+                    <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}>Font</span>
+                    <button
+                      onClick={() => setFontSize(Math.min(24, fontSize + 2))}
+                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
+                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                        }`}
+                    >
+                      <span className="text-sm font-bold">+</span>
+                    </button>
+                  </div>
+
+                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+
+                  {/* Column Width */}
+                  <div className="hidden md:flex items-center gap-2">
+                    <button
+                      onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
+                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
+                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                        }`}
+                    >
+                      <span className="text-sm font-bold">−</span>
+                    </button>
+                    <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                      }`}>Width</span>
+                    <button
+                      onClick={() => setColumnWidth(Math.max(200, columnWidth - 20))}
+                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
+                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                        }`}
+                    >
+                      <span className="text-sm font-bold">+</span>
+                    </button>
+                  </div>
+                </>
+              )}
+
+
               {/* Auto-scroll toggle - shown when in text tab */}
               {currentTab === 'text' && (
                 <button
@@ -914,60 +999,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
                 {currentTab === 'text' && (
                   <>
-                    <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                      }`} />
-
-                    {/* Text Size */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setFontSize(Math.max(12, fontSize - 2))}
-                        className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
-                          ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                          : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                          }`}
-                      >
-                        <span className="text-xs">−</span>
-                      </button>
-                      <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>Font Size</span>
-                      <button
-                        onClick={() => setFontSize(Math.min(24, fontSize + 2))}
-                        className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
-                          ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                          : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                          }`}
-                      >
-                        <span className="text-xs">+</span>
-                      </button>
-                    </div>
-
-                    <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                      }`} />
-
-                    {/* Columns */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
-                        className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
-                          ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                          : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                          }`}
-                      >
-                        <span className="text-xs">−</span>
-                      </button>
-                      <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>Column Width</span>
-                      <button
-                        onClick={() => setColumnWidth(Math.max(200, columnWidth - 20))}
-                        className={`w-6 h-6 border-[1.5px] transition-colors flex items-center justify-center ${isDarkMode
-                          ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                          : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                          }`}
-                      >
-                        <span className="text-xs">+</span>
-                      </button>
-                    </div>
-
                     <div className="flex-grow" />
 
                     {/* Column Navigation */}
@@ -1306,16 +1337,17 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                               </div>
                             )}
                             {/* External Links */}
-                            <div className="flex gap-3 mt-4">
+                            <div className="flex gap-2 mt-3">
                               {/* Ultimate Guitar Button */}
                               <a
                                 href={textData.ultimateGuitarUrl || '#'}
                                 target={textData.ultimateGuitarUrl ? '_blank' : '_self'}
                                 rel="noopener noreferrer"
-                                className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider rounded-xl border-[1.5px] transition-all shadow-md ${textData.ultimateGuitarUrl
-                                    ? (isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-lg' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-lg')
-                                    : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed')
+                                className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm ${textData.ultimateGuitarUrl
+                                  ? (isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md')
+                                  : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed')
                                   }`}
+                                style={{ textDecoration: 'none' }}
                                 onClick={(e) => !textData.ultimateGuitarUrl && e.preventDefault()}
                               >
                                 Ultimate Guitar
@@ -1325,10 +1357,11 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                                 href={textData.soundsliceUrl || '#'}
                                 target={textData.soundsliceUrl ? '_blank' : '_self'}
                                 rel="noopener noreferrer"
-                                className={`px-4 py-2.5 text-sm font-bold uppercase tracking-wider rounded-xl border-[1.5px] transition-all shadow-md ${textData.soundsliceUrl
-                                    ? (isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-lg' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-lg')
-                                    : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed')
+                                className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm ${textData.soundsliceUrl
+                                  ? (isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md')
+                                  : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed')
                                   }`}
+                                style={{ textDecoration: 'none' }}
                                 onClick={(e) => !textData.soundsliceUrl && e.preventDefault()}
                               >
                                 Soundslice
