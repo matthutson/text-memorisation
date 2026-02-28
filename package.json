@@ -27,6 +27,7 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "soundtouchjs": "^0.2.1",
+    "vite-plugin-pwa": "^1.2.0",
     "webmscore": "^1.2.1"
   },
   "devDependencies": {

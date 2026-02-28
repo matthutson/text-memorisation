@@ -1,8 +1,77 @@
 // Storage utility for managing texts and folders in Supabase
 import { supabase } from './supabase';
 
-// Folder operations
+// ---- Local cache helpers ----
+const CACHE_PREFIX = 'cache_';
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes before background refresh
+
+const getCache = (key) => {
+  try {
+    const raw = localStorage.getItem(CACHE_PREFIX + key);
+    if (!raw) return null;
+    const { data, timestamp } = JSON.parse(raw);
+    return { data, timestamp, isStale: Date.now() - timestamp > CACHE_TTL };
+  } catch {
+    return null;
+  }
+};
+
+const setCache = (key, data) => {
+  try {
+    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, timestamp: Date.now() }));
+  } catch (e) {
+    // localStorage full — clear old caches and retry once
+    clearOldCaches();
+    try {
+      localStorage.setItem(CACHE_PREFIX + key, JSON.stringify({ data, timestamp: Date.now() }));
+    } catch {
+      // Still full, skip caching
+    }
+  }
+};
+
+const invalidateCache = (key) => {
+  localStorage.removeItem(CACHE_PREFIX + key);
+};
+
+const clearOldCaches = () => {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(CACHE_PREFIX)) keys.push(k);
+  }
+  // Remove oldest entries (by timestamp)
+  const entries = keys.map(k => {
+    try {
+      const { timestamp } = JSON.parse(localStorage.getItem(k));
+      return { key: k, timestamp };
+    } catch {
+      return { key: k, timestamp: 0 };
+    }
+  }).sort((a, b) => a.timestamp - b.timestamp);
+  // Remove oldest half
+  const toRemove = entries.slice(0, Math.ceil(entries.length / 2));
+  toRemove.forEach(e => localStorage.removeItem(e.key));
+};
+
+// Synchronous cache getters — return cached data instantly (or null if no cache)
+export const getCachedFolders = () => getCache('folders')?.data || null;
+export const getCachedTexts = () => getCache('texts_all')?.data || null;
+
+// ---- Folder operations ----
+
+const mapFolder = (folder) => ({
+  id: folder.id,
+  name: folder.name,
+  createdAt: folder.created_at,
+  updatedAt: folder.updated_at
+});
+
 export const getFolders = async () => {
+  // Return cached data immediately if available
+  const cached = getCache('folders');
+  if (cached && !cached.isStale) return cached.data;
+
   const { data, error } = await supabase
     .from('folders')
     .select('*')
@@ -10,16 +79,13 @@ export const getFolders = async () => {
 
   if (error) {
     console.error('Error fetching folders:', error);
-    return [];
+    // Return stale cache on error
+    return cached?.data || [];
   }
 
-  // Convert snake_case to camelCase for consistency
-  return data.map(folder => ({
-    id: folder.id,
-    name: folder.name,
-    createdAt: folder.created_at,
-    updatedAt: folder.updated_at
-  }));
+  const result = data.map(mapFolder);
+  setCache('folders', result);
+  return result;
 };
 
 export const createFolder = async (name) => {
@@ -40,12 +106,8 @@ export const createFolder = async (name) => {
     throw error;
   }
 
-  return {
-    id: data.id,
-    name: data.name,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at
-  };
+  invalidateCache('folders');
+  return mapFolder(data);
 };
 
 export const updateFolder = async (id, name) => {
@@ -61,12 +123,8 @@ export const updateFolder = async (id, name) => {
     throw error;
   }
 
-  return {
-    id: data.id,
-    name: data.name,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at
-  };
+  invalidateCache('folders');
+  return mapFolder(data);
 };
 
 export const deleteFolder = async (id) => {
@@ -89,10 +147,35 @@ export const deleteFolder = async (id) => {
     console.error('Error deleting folder:', error);
     throw error;
   }
+
+  invalidateCache('folders');
+  invalidateCache('texts_all');
 };
 
-// Text operations
+// ---- Text operations ----
+
+const mapText = (text) => ({
+  id: text.id,
+  title: text.title,
+  artist: text.artist,
+  content: text.content,
+  youtubeUrl: text.youtube_url,
+  strummingPattern: text.strumming_pattern,
+  imageData: text.image_data,
+  musicXML: text.music_xml,
+  stems: text.stems,
+  ultimateGuitarUrl: text.ultimate_guitar_url,
+  soundsliceUrl: text.soundslice_url,
+  folderId: text.folder_id,
+  createdAt: text.created_at,
+  updatedAt: text.updated_at
+});
+
 export const getTexts = async (folderId = null) => {
+  const cacheKey = folderId ? `texts_${folderId}` : 'texts_all';
+  const cached = getCache(cacheKey);
+  if (cached && !cached.isStale) return cached.data;
+
   let query = supabase
     .from('texts')
     .select('*')
@@ -106,29 +189,19 @@ export const getTexts = async (folderId = null) => {
 
   if (error) {
     console.error('Error fetching texts:', error);
-    return [];
+    return cached?.data || [];
   }
 
-  // Convert snake_case to camelCase for consistency
-  return data.map(text => ({
-    id: text.id,
-    title: text.title,
-    artist: text.artist,
-    content: text.content,
-    youtubeUrl: text.youtube_url,
-    strummingPattern: text.strumming_pattern,
-    imageData: text.image_data,
-    musicXML: text.music_xml,
-    stems: text.stems,
-    ultimateGuitarUrl: text.ultimate_guitar_url,
-    soundsliceUrl: text.soundslice_url,
-    folderId: text.folder_id,
-    createdAt: text.created_at,
-    updatedAt: text.updated_at
-  }));
+  const result = data.map(mapText);
+  setCache(cacheKey, result);
+  return result;
 };
 
 export const getText = async (id) => {
+  const cacheKey = `text_${id}`;
+  const cached = getCache(cacheKey);
+  if (cached && !cached.isStale) return cached.data;
+
   const { data, error } = await supabase
     .from('texts')
     .select('*')
@@ -137,25 +210,12 @@ export const getText = async (id) => {
 
   if (error) {
     console.error('Error fetching text:', error);
-    return null;
+    return cached?.data || null;
   }
 
-  return {
-    id: data.id,
-    title: data.title,
-    artist: data.artist,
-    content: data.content,
-    youtubeUrl: data.youtube_url,
-    strummingPattern: data.strumming_pattern,
-    imageData: data.image_data,
-    musicXML: data.music_xml,
-    stems: data.stems,
-    ultimateGuitarUrl: data.ultimate_guitar_url,
-    soundsliceUrl: data.soundslice_url,
-    folderId: data.folder_id,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at
-  };
+  const result = mapText(data);
+  setCache(cacheKey, result);
+  return result;
 };
 
 export const createText = async (
@@ -199,22 +259,10 @@ export const createText = async (
     throw error;
   }
 
-  return {
-    id: data.id,
-    title: data.title,
-    artist: data.artist,
-    content: data.content,
-    youtubeUrl: data.youtube_url,
-    strummingPattern: data.strumming_pattern,
-    imageData: data.image_data,
-    musicXML: data.music_xml,
-    stems: data.stems,
-    ultimateGuitarUrl: data.ultimate_guitar_url,
-    soundsliceUrl: data.soundslice_url,
-    folderId: data.folder_id,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at
-  };
+  const result = mapText(data);
+  invalidateCache('texts_all');
+  invalidateCache(`texts_${folderId}`);
+  return result;
 };
 
 export const updateText = async (id, updates) => {
@@ -247,22 +295,10 @@ export const updateText = async (id, updates) => {
     throw error;
   }
 
-  return {
-    id: data.id,
-    title: data.title,
-    artist: data.artist,
-    content: data.content,
-    youtubeUrl: data.youtube_url,
-    strummingPattern: data.strumming_pattern,
-    imageData: data.image_data,
-    musicXML: data.music_xml,
-    stems: data.stems,
-    ultimateGuitarUrl: data.ultimate_guitar_url,
-    soundsliceUrl: data.soundslice_url,
-    folderId: data.folder_id,
-    createdAt: data.created_at,
-    updatedAt: data.updated_at
-  };
+  const result = mapText(data);
+  invalidateCache(`text_${id}`);
+  invalidateCache('texts_all');
+  return result;
 };
 
 export const deleteText = async (id) => {
@@ -275,8 +311,14 @@ export const deleteText = async (id) => {
     console.error('Error deleting text:', error);
     throw error;
   }
+
+  invalidateCache(`text_${id}`);
+  invalidateCache('texts_all');
 };
 
 export const moveText = async (id, folderId) => {
-  return updateText(id, { folderId });
+  const result = await updateText(id, { folderId });
+  // Also invalidate folder-specific caches
+  invalidateCache('texts_all');
+  return result;
 };

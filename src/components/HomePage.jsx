@@ -7,14 +7,19 @@ import {
   getFolders,
   createFolder,
   updateFolder,
-  deleteFolder
+  deleteFolder,
+  getCachedFolders,
+  getCachedTexts
 } from '../utils/storage';
 import QuillEditor from './QuillEditor';
 
 export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode }) {
-  const [folders, setFolders] = useState([]);
+  const [folders, setFolders] = useState(() => getCachedFolders() || []);
   const [selectedFolderId, setSelectedFolderId] = useState('all');
-  const [allTexts, setAllTexts] = useState([]);
+  const [allTexts, setAllTexts] = useState(() => {
+    const cached = getCachedTexts();
+    return cached ? cached.sort((a, b) => b.createdAt - a.createdAt) : [];
+  });
   const [showNewTextModal, setShowNewTextModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showNewFolderModal, setShowNewFolderModal] = useState(false);
