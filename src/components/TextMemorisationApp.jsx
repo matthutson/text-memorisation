@@ -762,39 +762,41 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
                 <div style={{ flex: 1 }} />
 
-                {/* Settings toggle - visible on mobile only */}
-                {currentTab === 'text' && (
-                  <IconButton
-                    variant="ghost"
-                    size="3"
-                    onClick={() => setIsControlsExpanded(!isControlsExpanded)}
-                    className="md:!hidden"
-                    title="Settings"
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: isControlsExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                      <path d="M6 9l6 6 6-6" />
-                    </svg>
-                  </IconButton>
-                )}
+                {/* Settings toggle + Dark mode — stretch to full row height with gap */}
+                <Flex align="stretch" gap="2" shrink="0" style={{ alignSelf: 'stretch' }}>
+                  {currentTab === 'text' && (
+                    <IconButton
+                      variant="ghost"
+                      size="3"
+                      onClick={() => setIsControlsExpanded(!isControlsExpanded)}
+                      className="md:!hidden"
+                      title="Settings"
+                      style={{ height: '100%' }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: isControlsExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </IconButton>
+                  )}
 
-                {/* Dark mode toggle */}
-                <Tooltip content={isDarkMode ? 'Light mode' : 'Dark mode'}>
-                  <IconButton variant="ghost" size="3" onClick={onToggleDarkMode}>
-                    {isDarkMode ? (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <circle cx="12" cy="12" r="5" />
-                        <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
-                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                        <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
-                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                      </svg>
-                    ) : (
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                      </svg>
-                    )}
-                  </IconButton>
-                </Tooltip>
+                  <Tooltip content={isDarkMode ? 'Light mode' : 'Dark mode'}>
+                    <IconButton variant="ghost" size="3" onClick={onToggleDarkMode} style={{ height: '100%' }}>
+                      {isDarkMode ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <circle cx="12" cy="12" r="5" />
+                          <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+                          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                          <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+                          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                        </svg>
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                        </svg>
+                      )}
+                    </IconButton>
+                  </Tooltip>
+                </Flex>
               </Flex>
 
               {/* Row 2: Text-specific controls — Font, Width, Auto-scroll, Metronome */}
@@ -936,7 +938,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
             {isAutoAdvancing && (
               <div className={`h-2 transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`}>
                 <div
-                  className={`h-full transition-colors ${isDarkMode ? 'bg-gray-500' : 'bg-black'}`}
+                  className={`h-full transition-colors ${isDarkMode ? 'bg-blue-400' : 'bg-black'}`}
                   style={{
                     width: `${countdownProgress}%`
                   }}
