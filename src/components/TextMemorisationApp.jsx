@@ -825,72 +825,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 </div>
               )}
 
-              {/* Font Size & Column Width - always visible, shown when in text tab */}
-              {currentTab === 'text' && (
-                <>
-                  <div className={`h-4 w-px hidden sm:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-
-                  {/* Font Size */}
-                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => setFontSize(Math.max(12, fontSize - 2))}
-                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
-                        }`}
-                    >
-                      <span className="text-base font-bold">−</span>
-                    </button>
-                    <div className="flex flex-col items-center px-1">
-                      <span className={`text-[10px] uppercase tracking-wider font-medium leading-none transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>Font</span>
-                      <span className={`text-xs tabular-nums leading-tight transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>{fontSize}</span>
-                    </div>
-                    <button
-                      onClick={() => setFontSize(Math.min(24, fontSize + 2))}
-                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
-                        }`}
-                    >
-                      <span className="text-base font-bold">+</span>
-                    </button>
-                  </div>
-
-                  <div className={`h-4 w-px hidden sm:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-
-                  {/* Column Width */}
-                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => setColumnWidth(Math.max(160, columnWidth - 20))}
-                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
-                        }`}
-                    >
-                      <span className="text-base font-bold">−</span>
-                    </button>
-                    <div className="flex flex-col items-center px-1">
-                      <span className={`text-[10px] uppercase tracking-wider font-medium leading-none transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>Width</span>
-                      <span className={`text-xs tabular-nums leading-tight transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                        }`}>{columnWidth}</span>
-                    </div>
-                    <button
-                      onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
-                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
-                        }`}
-                    >
-                      <span className="text-base font-bold">+</span>
-                    </button>
-                  </div>
-                </>
-              )}
-
-
               {/* Auto-scroll toggle - mobile/tablet only, desktop has its own in the controls wrapper */}
               {currentTab === 'text' && (
                 <button
@@ -1139,6 +1073,66 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               </div> {/* Close desktop controls wrapper */}
             </div>
 
+            {/* Font Size & Column Width - dedicated row, always visible on text tab */}
+            {currentTab === 'text' && (
+              <div className={`border-b px-3 md:px-4 py-2 flex items-center justify-center gap-4 sm:gap-6 flex-shrink-0 transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
+                }`}>
+                {/* Font Size */}
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs uppercase tracking-wider font-medium transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>Font</span>
+                  <button
+                    onClick={() => setFontSize(Math.max(12, fontSize - 2))}
+                    className={`w-10 h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                      ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
+                      : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
+                      }`}
+                  >
+                    <span className="text-base font-bold">−</span>
+                  </button>
+                  <span className={`text-sm tabular-nums w-6 text-center transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>{fontSize}</span>
+                  <button
+                    onClick={() => setFontSize(Math.min(24, fontSize + 2))}
+                    className={`w-10 h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                      ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
+                      : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
+                      }`}
+                  >
+                    <span className="text-base font-bold">+</span>
+                  </button>
+                </div>
+
+                <div className={`h-5 w-px transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+
+                {/* Column Width */}
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs uppercase tracking-wider font-medium transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                    }`}>Width</span>
+                  <button
+                    onClick={() => setColumnWidth(Math.max(160, columnWidth - 20))}
+                    className={`w-10 h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                      ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
+                      : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
+                      }`}
+                  >
+                    <span className="text-base font-bold">−</span>
+                  </button>
+                  <span className={`text-sm tabular-nums w-8 text-center transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                    }`}>{columnWidth}</span>
+                  <button
+                    onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
+                    className={`w-10 h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                      ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
+                      : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
+                      }`}
+                  >
+                    <span className="text-base font-bold">+</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Mobile Controls Drawer */}
             {isMobileControlsOpen && (
               <>
@@ -1175,58 +1169,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
                     {currentTab === 'text' && (
                       <>
-                        {/* Font Size */}
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Font Size</span>
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => setFontSize(Math.max(12, fontSize - 2))}
-                              className={`w-10 h-10 rounded-lg transition-colors flex items-center justify-center text-lg ${isDarkMode
-                                ? 'bg-gray-700 text-white hover:bg-gray-600'
-                                : 'bg-gray-200 text-black hover:bg-gray-300'
-                                }`}
-                            >
-                              −
-                            </button>
-                            <span className={`text-sm w-8 text-center tabular-nums ${isDarkMode ? 'text-white' : 'text-black'}`}>{fontSize}</span>
-                            <button
-                              onClick={() => setFontSize(Math.min(24, fontSize + 2))}
-                              className={`w-10 h-10 rounded-lg transition-colors flex items-center justify-center text-lg ${isDarkMode
-                                ? 'bg-gray-700 text-white hover:bg-gray-600'
-                                : 'bg-gray-200 text-black hover:bg-gray-300'
-                                }`}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Column Width */}
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Column Width</span>
-                          <div className="flex items-center gap-3">
-                            <button
-                              onClick={() => setColumnWidth(Math.max(160, columnWidth - 20))}
-                              className={`w-10 h-10 rounded-lg transition-colors flex items-center justify-center text-lg ${isDarkMode
-                                ? 'bg-gray-700 text-white hover:bg-gray-600'
-                                : 'bg-gray-200 text-black hover:bg-gray-300'
-                                }`}
-                            >
-                              −
-                            </button>
-                            <span className={`text-sm w-12 text-center tabular-nums ${isDarkMode ? 'text-white' : 'text-black'}`}>{columnWidth}</span>
-                            <button
-                              onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
-                              className={`w-10 h-10 rounded-lg transition-colors flex items-center justify-center text-lg ${isDarkMode
-                                ? 'bg-gray-700 text-white hover:bg-gray-600'
-                                : 'bg-gray-200 text-black hover:bg-gray-300'
-                                }`}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-
                         {/* Auto-scroll Speed */}
                         {isAutoAdvancing && (
                           <div className="flex items-center justify-between">
