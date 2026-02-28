@@ -6,30 +6,32 @@ import { updateText } from '../utils/storage';
 import StemPlayerWrapper from './StemPlayerWrapper';
 
 // A simple, self-contained Slider component to replace the external dependency.
-const Slider = ({ sliderProps }) => {
+const Slider = ({ sliderProps, isDarkMode }) => {
+  const thumbColor = isDarkMode ? '#e5e7eb' : '#000000';
+  const trackColor = isDarkMode ? '#4b5563' : '#e5e7eb';
   return (
     <div className="relative flex items-center select-none touch-none w-full h-5">
       <input
         type="range"
-        className="w-full h-1 bg-gray-200 rounded-full appearance-none cursor-pointer"
+        className="w-full h-1 rounded-full appearance-none cursor-pointer"
+        style={{ backgroundColor: trackColor }}
         {...sliderProps}
       />
-      {/* Basic styling for the slider thumb to make it consistent across browsers */}
       <style>{`
         input[type=range]::-webkit-slider-thumb {
           -webkit-appearance: none;
           appearance: none;
-          width: 12px;
-          height: 12px;
-          background: black;
+          width: 16px;
+          height: 16px;
+          background: ${thumbColor};
           border-radius: 50%;
           cursor: pointer;
-          margin-top: -3.5px; /* Vertically center the thumb on the track */
+          margin-top: -5.5px;
         }
         input[type=range]::-moz-range-thumb {
-          width: 12px;
-          height: 12px;
-          background: black;
+          width: 16px;
+          height: 16px;
+          background: ${thumbColor};
           border-radius: 50%;
           cursor: pointer;
         }
@@ -771,7 +773,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               {/* Backing Tracks (mobile/tablet only - desktop has its own in the controls wrapper) */}
               <button
                 onClick={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
-                className={`md:hidden px-2 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isStemPlayerVisible
+                className={`md:hidden px-3 py-2 text-xs uppercase tracking-wider font-medium rounded-lg transition-colors flex-shrink-0 ${isStemPlayerVisible
                   ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
                   : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
                   }`}
@@ -790,7 +792,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   <div className="flex items-center gap-1 sm:hidden">
                     <button
                       onClick={() => setVisibility(Math.max(0, visibility - 10))}
-                      className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-black hover:bg-gray-300'}`}
+                      className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-black hover:bg-gray-300'}`}
                     >
                       <span className="text-lg leading-none">−</span>
                     </button>
@@ -798,7 +800,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       }`}>{visibility}%</span>
                     <button
                       onClick={() => setVisibility(Math.min(100, visibility + 10))}
-                      className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-black hover:bg-gray-300'}`}
+                      className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-black hover:bg-gray-300'}`}
                     >
                       <span className="text-lg leading-none">+</span>
                     </button>
@@ -807,6 +809,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   <div className="hidden sm:flex items-center gap-2">
                     <div className="w-20">
                       <Slider
+                        isDarkMode={isDarkMode}
                         sliderProps={{
                           value: visibility,
                           onChange: (e) => setVisibility(parseInt(e.target.value)),
@@ -822,62 +825,66 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 </div>
               )}
 
-              {/* Font Size & Column Width - Desktop only, shown when in text tab */}
+              {/* Font Size & Column Width - always visible, shown when in text tab */}
               {currentTab === 'text' && (
                 <>
-                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                  <div className={`h-4 w-px hidden sm:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
 
                   {/* Font Size */}
-                  <div className="hidden md:flex items-center gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                     <button
                       onClick={() => setFontSize(Math.max(12, fontSize - 2))}
-                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
+                        : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
                         }`}
                     >
-                      <span className="text-sm font-bold">−</span>
+                      <span className="text-base font-bold">−</span>
                     </button>
-                    <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Font</span>
-                    <span className={`text-xs tabular-nums transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>{fontSize}</span>
+                    <div className="flex flex-col items-center px-1">
+                      <span className={`text-[10px] uppercase tracking-wider font-medium leading-none transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>Font</span>
+                      <span className={`text-xs tabular-nums leading-tight transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                        }`}>{fontSize}</span>
+                    </div>
                     <button
                       onClick={() => setFontSize(Math.min(24, fontSize + 2))}
-                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
+                        : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
                         }`}
                     >
-                      <span className="text-sm font-bold">+</span>
+                      <span className="text-base font-bold">+</span>
                     </button>
                   </div>
 
-                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                  <div className={`h-4 w-px hidden sm:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
 
                   {/* Column Width */}
-                  <div className="hidden md:flex items-center gap-2">
+                  <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                     <button
                       onClick={() => setColumnWidth(Math.max(160, columnWidth - 20))}
-                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
+                        : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
                         }`}
                     >
-                      <span className="text-sm font-bold">−</span>
+                      <span className="text-base font-bold">−</span>
                     </button>
-                    <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Width</span>
-                    <span className={`text-xs tabular-nums transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
-                      }`}>{columnWidth}</span>
+                    <div className="flex flex-col items-center px-1">
+                      <span className={`text-[10px] uppercase tracking-wider font-medium leading-none transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                        }`}>Width</span>
+                      <span className={`text-xs tabular-nums leading-tight transition-colors ${isDarkMode ? 'text-gray-300' : 'text-gray-700'
+                        }`}>{columnWidth}</span>
+                    </div>
                     <button
                       onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
-                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
+                      className={`w-9 h-9 sm:w-10 sm:h-10 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
+                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700 text-white'
+                        : 'border-gray-300 hover:border-black hover:bg-gray-50 text-black'
                         }`}
                     >
-                      <span className="text-sm font-bold">+</span>
+                      <span className="text-base font-bold">+</span>
                     </button>
                   </div>
                 </>
@@ -888,7 +895,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               {currentTab === 'text' && (
                 <button
                   onClick={() => setIsAutoAdvancing(!isAutoAdvancing)}
-                  className={`md:hidden px-2 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isAutoAdvancing
+                  className={`md:hidden px-3 py-2 text-xs uppercase tracking-wider font-medium rounded-lg transition-colors flex-shrink-0 ${isAutoAdvancing
                     ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
                     : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
                     }`}
@@ -903,7 +910,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               {currentTab === 'text' && (
                 <button
                   onClick={() => setIsMetronomeActive(!isMetronomeActive)}
-                  className={`md:hidden px-2 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isMetronomeActive
+                  className={`md:hidden px-3 py-2 text-xs uppercase tracking-wider font-medium rounded-lg transition-colors flex-shrink-0 ${isMetronomeActive
                     ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
                     : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
                     }`}
@@ -986,6 +993,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         }`}>Reveal</span>
                       <div className="w-20">
                         <Slider
+                          isDarkMode={isDarkMode}
                           sliderProps={{
                             value: visibility,
                             onChange: (e) => setVisibility(parseInt(e.target.value)),
@@ -1064,6 +1072,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         }`}>Speed</span>
                       <div className="w-32">
                         <Slider
+                          isDarkMode={isDarkMode}
                           sliderProps={{
                             value: autoScrollSpeed,
                             onChange: (e) => setAutoScrollSpeed(parseInt(e.target.value)),
@@ -1139,7 +1148,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 />
                 <div className={`md:hidden fixed bottom-0 left-0 right-0 z-50 p-4 rounded-t-2xl max-h-[70vh] overflow-y-auto transition-colors ${isDarkMode ? 'bg-gray-800' : 'bg-white'
                   }`}>
-                  <div className="flex items-center justify-between mb-4 pb-3 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
+                  <div className={`flex items-center justify-between mb-4 pb-3 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
                     <h3 className={`font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>Settings</h3>
                     <button
                       onClick={() => setIsMobileControlsOpen(false)}
@@ -1169,20 +1178,20 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         {/* Font Size */}
                         <div className="flex items-center justify-between">
                           <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Font Size</span>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                             <button
                               onClick={() => setFontSize(Math.max(12, fontSize - 2))}
-                              className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
+                              className={`w-10 h-10 rounded-lg transition-colors flex items-center justify-center text-lg ${isDarkMode
                                 ? 'bg-gray-700 text-white hover:bg-gray-600'
                                 : 'bg-gray-200 text-black hover:bg-gray-300'
                                 }`}
                             >
                               −
                             </button>
-                            <span className={`text-sm w-8 text-center ${isDarkMode ? 'text-white' : 'text-black'}`}>{fontSize}</span>
+                            <span className={`text-sm w-8 text-center tabular-nums ${isDarkMode ? 'text-white' : 'text-black'}`}>{fontSize}</span>
                             <button
                               onClick={() => setFontSize(Math.min(24, fontSize + 2))}
-                              className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
+                              className={`w-10 h-10 rounded-lg transition-colors flex items-center justify-center text-lg ${isDarkMode
                                 ? 'bg-gray-700 text-white hover:bg-gray-600'
                                 : 'bg-gray-200 text-black hover:bg-gray-300'
                                 }`}
@@ -1195,20 +1204,20 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         {/* Column Width */}
                         <div className="flex items-center justify-between">
                           <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Column Width</span>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                             <button
                               onClick={() => setColumnWidth(Math.max(160, columnWidth - 20))}
-                              className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
+                              className={`w-10 h-10 rounded-lg transition-colors flex items-center justify-center text-lg ${isDarkMode
                                 ? 'bg-gray-700 text-white hover:bg-gray-600'
                                 : 'bg-gray-200 text-black hover:bg-gray-300'
                                 }`}
                             >
                               −
                             </button>
-                            <span className={`text-sm w-12 text-center ${isDarkMode ? 'text-white' : 'text-black'}`}>{columnWidth}</span>
+                            <span className={`text-sm w-12 text-center tabular-nums ${isDarkMode ? 'text-white' : 'text-black'}`}>{columnWidth}</span>
                             <button
                               onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
-                              className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
+                              className={`w-10 h-10 rounded-lg transition-colors flex items-center justify-center text-lg ${isDarkMode
                                 ? 'bg-gray-700 text-white hover:bg-gray-600'
                                 : 'bg-gray-200 text-black hover:bg-gray-300'
                                 }`}
