@@ -31,17 +31,28 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
   const [newTextFolderId, setNewTextFolderId] = useState('default');
   const [editingTextFolderId, setEditingTextFolderId] = useState('default');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     loadData();
   }, []);
 
   const loadData = async () => {
-    const foldersData = await getFolders();
-    setFolders(foldersData);
-    const textsData = await getTexts();
-    const sortedTexts = textsData.sort((a, b) => b.createdAt - a.createdAt);
-    setAllTexts(sortedTexts);
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const foldersData = await getFolders();
+      setFolders(foldersData);
+      const textsData = await getTexts();
+      const sortedTexts = textsData.sort((a, b) => b.createdAt - a.createdAt);
+      setAllTexts(sortedTexts);
+    } catch (err) {
+      console.error('Failed to load data:', err);
+      setLoadError(err?.message || 'Failed to connect to database');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const texts = selectedFolderId === 'all'
@@ -354,7 +365,23 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
 
         {/* Content */}
         <div className="flex-1 p-4 md:p-6">
-          {selectedFolderId === 'all' ? (
+          {isLoading ? (
+            <div className="text-center py-16">
+              <p className={`text-base ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Loading...</p>
+            </div>
+          ) : loadError ? (
+            <div className={`mx-auto max-w-lg mt-16 p-5 rounded-xl border-2 ${isDarkMode ? 'bg-red-900/30 border-red-700 text-red-300' : 'bg-red-50 border-red-300 text-red-800'}`}>
+              <p className="font-bold text-sm uppercase tracking-wide mb-2">Failed to load data</p>
+              <p className="text-sm font-mono break-all">{loadError}</p>
+              <p className="text-xs mt-3 opacity-75">Check your Supabase project is active and your .env credentials are correct. Open the browser console for more detail.</p>
+              <button
+                onClick={loadData}
+                className={`mt-4 px-4 py-2 text-xs font-bold uppercase tracking-wide rounded-lg border ${isDarkMode ? 'border-red-600 hover:bg-red-800' : 'border-red-400 hover:bg-red-100'}`}
+              >
+                Retry
+              </button>
+            </div>
+          ) : selectedFolderId === 'all' ? (
             // Show folder cards when "All Texts" is selected
             allTexts.length === 0 ? (
               <div className="text-center py-16 md:py-24 px-4">

@@ -10,7 +10,7 @@ export const getFolders = async () => {
 
   if (error) {
     console.error('Error fetching folders:', error);
-    return [];
+    throw new Error(error.message || 'Failed to fetch folders');
   }
 
   // Convert snake_case to camelCase for consistency
@@ -106,7 +106,7 @@ export const getTexts = async (folderId = null) => {
 
   if (error) {
     console.error('Error fetching texts:', error);
-    return [];
+    throw new Error(error.message || 'Failed to fetch texts');
   }
 
   // Convert snake_case to camelCase for consistency
