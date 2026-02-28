@@ -16,6 +16,9 @@ CREATE TABLE texts (
   strumming_pattern TEXT DEFAULT '',
   image_data TEXT DEFAULT '',
   music_xml TEXT DEFAULT '',
+  stems JSONB DEFAULT '[]',
+  ultimate_guitar_url TEXT DEFAULT '',
+  soundslice_url TEXT DEFAULT '',
   folder_id TEXT NOT NULL REFERENCES folders(id) ON DELETE CASCADE,
   created_at BIGINT NOT NULL,
   updated_at BIGINT NOT NULL
