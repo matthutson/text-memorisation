@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Theme } from '@radix-ui/themes';
 import HomePage from './components/HomePage';
 import TextMemorisationApp from './components/TextMemorisationApp';
 import { getText } from './utils/storage';
@@ -104,6 +105,7 @@ function App() {
   }
 
   return (
+    <Theme appearance={isDarkMode ? 'dark' : 'light'} accentColor="gray" radius="medium" scaling="100%">
     <ErrorBoundary>
       {currentView === 'home' ? (
         <HomePage
@@ -122,6 +124,7 @@ function App() {
         />
       )}
     </ErrorBoundary>
+    </Theme>
   );
 }
 
