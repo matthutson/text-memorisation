@@ -233,7 +233,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       if (lineIsChord[lineIdx]) {
         // Keep chord lines fully visible with special styling
         result.push(
-          <div key={lineIdx} style={{ color: '#3b82f6', fontWeight: '400' }}>
+          <div key={lineIdx} style={{ color: '#3b82f6', fontWeight: '400', lineHeight: '1.1', marginBottom: 0, paddingBottom: 0 }}>
             {line || ' '}
           </div>
         );
@@ -1030,7 +1030,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         <div style={{
                           fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif',
                           fontSize: `${fontSize}px`,
-                          lineHeight: '1.5',
+                          lineHeight: '1.3',
                           margin: 0,
                           fontWeight: '300',
                           whiteSpace: 'pre-wrap'
