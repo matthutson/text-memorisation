@@ -22,11 +22,12 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     }
   }, [textData?.id, textData?.stems]); // Re-run when textData or stems change
   const [isStemPlayerVisible, setIsStemPlayerVisible] = useState(false);
+  const [isControlsExpanded, setIsControlsExpanded] = useState(false);
   const [isYouTubeVisible, setIsYouTubeVisible] = useState(false);
   const [visibility, setVisibility] = useState(100);
   const [isEditing, setIsEditing] = useState(!initialText);
-  const [fontSize, setFontSize] = useState(16);
-  const [columnWidth, setColumnWidth] = useState(240);
+  const [fontSize, setFontSize] = useState(12);
+  const [columnWidth, setColumnWidth] = useState(160);
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(5); // Speed from 1-10
   const [countdownProgress, setCountdownProgress] = useState(100);
@@ -596,9 +597,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     }
 
     // Start countdown and scrolling
-    // Speed 1 = 24 seconds, Speed 10 = 8 seconds
-    // Formula: delay = 25778 - (speed * 1778)
-    const delayMs = 25778 - (autoScrollSpeed * 1778);
+    // Speed 1 = 36s (slowest), Speed 10 = 4s (fastest)
+    // Formula: delayMs = 39556 - (speed * 3556)
+    const delayMs = 39556 - (autoScrollSpeed * 3556);
     const startTime = Date.now();
 
     // Animate the countdown bar
@@ -623,9 +624,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         const maxScroll = container.scrollWidth - container.clientWidth;
 
         if (currentScroll + columnWithGap <= maxScroll) {
-          container.scrollLeft = currentScroll + columnWithGap;
+          container.scrollTo({ left: currentScroll + columnWithGap, behavior: 'smooth' });
         } else {
-          container.scrollLeft = 0; // Loop to start (padding will show)
+          container.scrollTo({ left: 0, behavior: 'smooth' });
         }
 
         // Trigger re-run of this effect
@@ -761,6 +762,21 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
                 <div style={{ flex: 1 }} />
 
+                {/* Settings toggle - visible on mobile only */}
+                {currentTab === 'text' && (
+                  <IconButton
+                    variant="ghost"
+                    size="3"
+                    onClick={() => setIsControlsExpanded(!isControlsExpanded)}
+                    className="md:!hidden"
+                    title="Settings"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: isControlsExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </IconButton>
+                )}
+
                 {/* Dark mode toggle */}
                 <Tooltip content={isDarkMode ? 'Light mode' : 'Dark mode'}>
                   <IconButton variant="ghost" size="3" onClick={onToggleDarkMode}>
@@ -782,8 +798,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               </Flex>
 
               {/* Row 2: Text-specific controls — Font, Width, Auto-scroll, Metronome */}
+              {/* Collapsible on mobile (via chevron toggle), always visible on md+ */}
               {currentTab === 'text' && (
-                <Flex align="center" gap="3" wrap="wrap" px="3" py="2" style={{ borderTop: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb' }}>
+                <Flex align="center" gap="3" wrap="wrap" px="3" py="2" className={`${isControlsExpanded ? '' : 'hidden'} md:!flex`} style={{ borderTop: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb' }}>
                   {/* Font Size */}
                   <Flex align="center" gap="2" shrink="0">
                     <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Font</Text>
@@ -952,7 +969,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       ref={scrollContainerRef}
                       className="h-full overflow-x-auto overflow-y-hidden"
                       style={{
-                        scrollBehavior: 'smooth',
                         WebkitOverflowScrolling: 'touch',
                         scrollbarWidth: 'none',
                         msOverflowStyle: 'none',

@@ -369,31 +369,31 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
               </div>
             ) : (
               <div className="max-w-7xl mx-auto">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 mt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-4 mt-4">
                   {folders.map(folder => {
                     const folderTexts = allTexts.filter(t => t.folderId === folder.id);
                     return (
                       <div
                         key={folder.id}
                         onClick={() => setSelectedFolderId(folder.id)}
-                        className={`rounded-2xl p-4 md:p-5 transition-all group hover:shadow-xl border-2 cursor-pointer ${isDarkMode
+                        className={`rounded-xl md:rounded-2xl p-3 md:p-5 transition-all group hover:shadow-xl border-2 cursor-pointer ${isDarkMode
                           ? 'bg-gray-800 border-blue-500 hover:border-blue-400'
                           : 'bg-white border-gray-900 hover:border-gray-700'
                           }`}
                       >
-                        <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-start justify-between mb-2 md:mb-3">
                           <div className="flex-1 min-w-0">
-                            <div className={`mb-3 transition-colors ${isDarkMode ? 'text-blue-400' : 'text-blue-600'
+                            <div className={`mb-2 md:mb-3 transition-colors ${isDarkMode ? 'text-blue-400' : 'text-blue-600'
                               }`}>
-                              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                              <svg className="w-5 h-5 md:w-8 md:h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
                               </svg>
                             </div>
-                            <h3 className={`font-bold text-base md:text-lg transition-colors ${isDarkMode ? 'text-white' : 'text-black'
+                            <h3 className={`font-bold text-sm md:text-lg transition-colors ${isDarkMode ? 'text-white' : 'text-black'
                               }`}>
                               {folder.name}
                             </h3>
-                            <p className={`text-xs md:text-sm font-light mt-2 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                            <p className={`text-[11px] md:text-sm font-light mt-1 md:mt-2 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
                               }`}>
                               {folderTexts.length} {folderTexts.length === 1 ? 'text' : 'texts'}
                             </p>
@@ -433,11 +433,11 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
               </div>
             ) : (
               <div className="max-w-7xl mx-auto">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4 mt-4">
+                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-4 mt-4">
                   {texts.map(text => (
                     <div
                       key={text.id}
-                      className={`rounded-2xl p-4 md:p-5 transition-all group hover:shadow-xl border-2 ${isDarkMode
+                      className={`rounded-xl md:rounded-2xl p-3 md:p-5 transition-all group hover:shadow-xl border-2 ${isDarkMode
                         ? 'bg-gray-800 border-blue-500 hover:border-blue-400'
                         : 'bg-white border-gray-900 hover:border-gray-700'
                         }`}
