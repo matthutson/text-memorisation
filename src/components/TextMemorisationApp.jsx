@@ -804,7 +804,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   {/* Font Size */}
                   <Flex align="center" gap="2" shrink="0">
                     <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Font</Text>
-                    <IconButton variant="outline" size="3" onClick={() => setFontSize(Math.max(12, fontSize - 2))}>
+                    <IconButton variant="outline" size="3" onClick={() => setFontSize(Math.max(10, fontSize - 2))}>
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
                     </IconButton>
                     <Text size="2" style={{ width: 24, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{fontSize}</Text>
@@ -818,7 +818,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   {/* Column Width */}
                   <Flex align="center" gap="2" shrink="0">
                     <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Width</Text>
-                    <IconButton variant="outline" size="3" onClick={() => setColumnWidth(Math.max(160, columnWidth - 20))}>
+                    <IconButton variant="outline" size="3" onClick={() => setColumnWidth(Math.max(100, columnWidth - 20))}>
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
                     </IconButton>
                     <Text size="2" style={{ width: 32, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{columnWidth}</Text>
@@ -1046,7 +1046,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                           fontSize: `${fontSize}px`,
                           lineHeight: '1.3',
                           margin: 0,
-                          fontWeight: '300',
+                          fontWeight: '600',
                           whiteSpace: 'pre-wrap'
                         }}>
                           {processedText.isHtml ? (
