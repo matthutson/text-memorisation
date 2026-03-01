@@ -26,8 +26,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [isYouTubeVisible, setIsYouTubeVisible] = useState(false);
   const [visibility, setVisibility] = useState(100);
   const [isEditing, setIsEditing] = useState(!initialText);
-  const [fontSize, setFontSize] = useState(12);
-  const [columnWidth, setColumnWidth] = useState(160);
+  const [fontSize, setFontSize] = useState(() => window.innerWidth < 768 ? 10 : 12);
+  const [columnWidth, setColumnWidth] = useState(() => window.innerWidth < 768 ? 100 : 160);
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(5); // Speed from 1-10
   const [countdownProgress, setCountdownProgress] = useState(100);
@@ -744,7 +744,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   <>
                     <Separator orientation="vertical" size="1" />
                     <Flex align="center" gap="2" shrink="0">
-                      <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Reveal</Text>
+                      <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hide Text</Text>
                       <div style={{ width: 80 }}>
                         <RadixSlider
                           value={[visibility]}
@@ -1009,34 +1009,36 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                               </div>
                             )}
                             {/* External Links */}
-                            <div className="flex gap-2 mt-3">
+                            <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
                               {/* Ultimate Guitar Button */}
                               <a
                                 href={textData.ultimateGuitarUrl || '#'}
                                 target={textData.ultimateGuitarUrl ? '_blank' : '_self'}
                                 rel="noopener noreferrer"
-                                className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm ${textData.ultimateGuitarUrl
-                                  ? (isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md')
-                                  : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed')
+                                className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm whitespace-nowrap ${textData.ultimateGuitarUrl
+                                  ? (isDarkMode ? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md')
+                                  : (isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-500 cursor-not-allowed' : 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed')
                                   }`}
                                 style={{ textDecoration: 'none' }}
                                 onClick={(e) => !textData.ultimateGuitarUrl && e.preventDefault()}
                               >
-                                Ultimate Guitar
+                                <span className="hidden sm:inline">Ultimate Guitar</span>
+                                <span className="sm:hidden">UG</span>
                               </a>
                               {/* Soundslice Button */}
                               <a
                                 href={textData.soundsliceUrl || '#'}
                                 target={textData.soundsliceUrl ? '_blank' : '_self'}
                                 rel="noopener noreferrer"
-                                className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm ${textData.soundsliceUrl
-                                  ? (isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md')
-                                  : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed')
+                                className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm whitespace-nowrap ${textData.soundsliceUrl
+                                  ? (isDarkMode ? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md')
+                                  : (isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-500 cursor-not-allowed' : 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed')
                                   }`}
                                 style={{ textDecoration: 'none' }}
                                 onClick={(e) => !textData.soundsliceUrl && e.preventDefault()}
                               >
-                                Soundslice
+                                <span className="hidden sm:inline">Soundslice</span>
+                                <span className="sm:hidden">SS</span>
                               </a>
                             </div>
                           </div>

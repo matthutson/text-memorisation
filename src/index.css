@@ -608,12 +608,6 @@ body {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-@media (min-width: 640px) {
-  .sm\:grid-cols-2 {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 /* Additional base utilities */
 .ml-2 {
   margin-left: 0.5rem;
@@ -627,23 +621,11 @@ body {
   margin-top: 0.75rem;
 }
 
-.w-5 {
-  width: 1.25rem;
-}
-
-.h-5 {
-  height: 1.25rem;
-}
-
 .max-w-7xl {
   max-width: 80rem;
 }
 
 .opacity-100 {
-  opacity: 1;
-}
-
-.group:hover .group-hover\:opacity-100 {
   opacity: 1;
 }
 
@@ -740,6 +722,37 @@ body {
   .md\:opacity-0 {
     opacity: 0;
   }
+  .md\:hidden {
+    display: none;
+  }
+  .md\:\!flex {
+    display: flex !important;
+  }
+  .md\:\!hidden {
+    display: none !important;
+  }
+  .md\:sticky {
+    position: sticky;
+  }
+  .md\:top-0 {
+    top: 0;
+  }
+  .md\:translate-x-0 {
+    transform: translateX(0);
+  }
+  .md\:z-0 {
+    z-index: 0;
+  }
+  .md\:mt-2 {
+    margin-top: 0.5rem;
+  }
+  .md\:p-2\.5 {
+    padding: 0.625rem;
+  }
+  .md\:py-2\.5 {
+    padding-top: 0.625rem;
+    padding-bottom: 0.625rem;
+  }
   .md\:group-hover\:opacity-100 {
     /* handled by group:hover below */
   }
@@ -763,6 +776,71 @@ body {
   .xl\:grid-cols-4 {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
+}
+
+/* Fractional padding */
+.py-1\.5 {
+  padding-top: 0.375rem;
+  padding-bottom: 0.375rem;
+}
+
+.py-2\.5 {
+  padding-top: 0.625rem;
+  padding-bottom: 0.625rem;
+}
+
+.p-2\.5 {
+  padding: 0.625rem;
+}
+
+.p-12 {
+  padding: 3rem;
+}
+
+/* Spacing extras */
+.mr-2 {
+  margin-right: 0.5rem;
+}
+
+.mt-2 {
+  margin-top: 0.5rem;
+}
+
+/* Positioning */
+.top-0 {
+  top: 0;
+}
+
+.bottom-0 {
+  bottom: 0;
+}
+
+.left-0 {
+  left: 0;
+}
+
+.right-0 {
+  right: 0;
+}
+
+.z-30 {
+  z-index: 30;
+}
+
+/* Overflow */
+.overflow-y-hidden {
+  overflow-y: hidden;
+}
+
+/* Border top */
+.border-t {
+  border-top-width: 1px;
+  border-style: solid;
+}
+
+/* Group base class */
+.group {
+  /* marker class for group-hover */
 }
 
 .appearance-none {
@@ -963,7 +1041,57 @@ select:not([class*="rt-"]) {
   border-color: #4b5563;
 }
 
-/* Blue Color Utilities */
+/* ===== Backgrounds ===== */
+.bg-gray-700 {
+  background-color: #374151;
+}
+
+.bg-gray-900 {
+  background-color: #111827;
+}
+
+.bg-blue-400 {
+  background-color: #60a5fa;
+}
+
+.bg-blue-500 {
+  background-color: #3b82f6;
+}
+
+.bg-blue-600 {
+  background-color: #2563eb;
+}
+
+.bg-red-50 {
+  background-color: #fef2f2;
+}
+
+.bg-red-900 {
+  background-color: #7f1d1d;
+}
+
+.bg-green-600 {
+  background-color: #16a34a;
+}
+
+.bg-green-700 {
+  background-color: #15803d;
+}
+
+.bg-green-800 {
+  background-color: #166534;
+}
+
+.bg-green-900 {
+  background-color: #14532d;
+}
+
+/* ===== Text colors ===== */
+.text-base {
+  font-size: 1rem;
+  line-height: 1.5rem;
+}
+
 .text-blue-400 {
   color: #60a5fa;
 }
@@ -972,18 +1100,210 @@ select:not([class*="rt-"]) {
   color: #2563eb;
 }
 
-.bg-blue-600 {
-  background-color: #2563eb;
+.text-gray-300 {
+  color: #d1d5db;
 }
 
+.text-red-400 {
+  color: #f87171;
+}
+
+.text-red-600 {
+  color: #dc2626;
+}
+
+/* ===== Border colors ===== */
 .border-blue-600 {
   border-color: #2563eb;
+}
+
+.border-gray-600 {
+  border-color: #4b5563;
+}
+
+.border-gray-500 {
+  border-color: #6b7280;
+}
+
+.border-red-300 {
+  border-color: #fca5a5;
+}
+
+.border-red-500 {
+  border-color: #ef4444;
+}
+
+.border-red-600 {
+  border-color: #dc2626;
+}
+
+.border-white {
+  border-color: #ffffff;
+}
+
+/* ===== Hover: backgrounds ===== */
+.hover\:bg-gray-700:hover {
+  background-color: #374151;
+}
+
+.hover\:bg-gray-600:hover {
+  background-color: #4b5563;
+}
+
+.hover\:bg-blue-500:hover {
+  background-color: #3b82f6;
 }
 
 .hover\:bg-blue-700:hover {
   background-color: #1d4ed8;
 }
 
+.hover\:bg-red-50:hover {
+  background-color: #fef2f2;
+}
+
+.hover\:bg-red-900:hover {
+  background-color: #7f1d1d;
+}
+
+.hover\:bg-green-600:hover {
+  background-color: #16a34a;
+}
+
+.hover\:bg-green-900:hover {
+  background-color: #14532d;
+}
+
+.hover\:bg-gray-100:hover {
+  background-color: #f3f4f6;
+}
+
 .hover\:bg-blue-900\/20:hover {
   background-color: rgba(30, 58, 138, 0.2);
+}
+
+/* ===== Hover: text ===== */
+.hover\:text-white:hover {
+  color: #ffffff;
+}
+
+.hover\:text-red-400:hover {
+  color: #f87171;
+}
+
+.hover\:text-red-600:hover {
+  color: #dc2626;
+}
+
+/* ===== Hover: borders ===== */
+.hover\:border-gray-300:hover {
+  border-color: #d1d5db;
+}
+
+.hover\:border-gray-500:hover {
+  border-color: #6b7280;
+}
+
+.hover\:border-gray-600:hover {
+  border-color: #4b5563;
+}
+
+.hover\:border-red-600:hover {
+  border-color: #dc2626;
+}
+
+.hover\:border-red-500:hover {
+  border-color: #ef4444;
+}
+
+/* ===== Shadows ===== */
+.shadow-sm {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+}
+
+.shadow-md {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+.shadow-lg {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.shadow-xl {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+.hover\:shadow-md:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+}
+
+.hover\:shadow-lg:hover {
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+}
+
+.hover\:shadow-xl:hover {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+}
+
+/* ===== Transitions ===== */
+.transition-all {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* ===== Layout & Typography ===== */
+.no-underline {
+  text-decoration: none;
+}
+
+.whitespace-nowrap {
+  white-space: nowrap;
+}
+
+.rounded-md {
+  border-radius: 0.375rem;
+}
+
+.rounded-lg {
+  border-radius: 0.5rem;
+}
+
+.w-5 {
+  width: 1.25rem;
+}
+
+.w-16 {
+  width: 4rem;
+}
+
+.border-dashed {
+  border-style: dashed;
+}
+
+/* Focus states */
+.focus\:border-gray-400:focus {
+  border-color: #9ca3af;
+}
+
+.focus\:border-gray-500:focus {
+  border-color: #6b7280;
+}
+
+.focus\:border-gray-600:focus {
+  border-color: #4b5563;
+}
+
+/* Placeholder colors */
+.placeholder-gray-500::placeholder {
+  color: #6b7280;
+}
+
+/* Disabled hover overrides */
+.disabled\:hover\:bg-white:disabled:hover {
+  background-color: #ffffff;
+}
+
+.disabled\:hover\:bg-black:disabled:hover {
+  background-color: #000000;
 }

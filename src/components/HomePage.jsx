@@ -403,8 +403,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                               }`}>
                               {folder.name}
                             </h3>
-                            <p className={`text-[11px] md:text-sm font-light mt-1 md:mt-2 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                              }`}>
+                            <p className={`md:text-sm font-light mt-1 md:mt-2 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
+                              }`} style={{ fontSize: '11px' }}>
                               {folderTexts.length} {folderTexts.length === 1 ? 'text' : 'texts'}
                             </p>
                           </div>
@@ -496,18 +496,19 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
 
                       {/* External Links */}
                       {(text.ultimateGuitarUrl || text.soundsliceUrl) && (
-                        <div className="flex gap-2 mb-3">
+                        <div className="flex gap-1 mb-3" style={{ flexWrap: 'wrap' }}>
                           {text.ultimateGuitarUrl && (
                             <a
                               href={text.ultimateGuitarUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm ${isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md'
+                              className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500' : 'bg-black text-white border-black hover:bg-gray-800'
                                 }`}
-                              style={{ textDecoration: 'none' }}
+                              style={{ textDecoration: 'none', fontSize: '10px' }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              Ultimate Guitar
+                              <span className="hidden sm:inline">Ultimate Guitar</span>
+                              <span className="sm:hidden">UG</span>
                             </a>
                           )}
                           {text.soundsliceUrl && (
@@ -515,12 +516,13 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                               href={text.soundsliceUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm ${isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md'
+                              className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500' : 'bg-black text-white border-black hover:bg-gray-800'
                                 }`}
-                              style={{ textDecoration: 'none' }}
+                              style={{ textDecoration: 'none', fontSize: '10px' }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              Soundslice
+                              <span className="hidden sm:inline">Soundslice</span>
+                              <span className="sm:hidden">SS</span>
                             </a>
                           )}
                         </div>
@@ -528,9 +530,9 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
 
                       <button
                         onClick={() => onPracticeText(text)}
-                        className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl shadow-md hover:shadow-lg ${isDarkMode
-                          ? 'bg-blue-600 text-white hover:bg-blue-500'
-                          : 'bg-black text-white hover:bg-gray-800'
+                        className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl border-[1.5px] shadow-md hover:shadow-lg ${isDarkMode
+                          ? 'bg-blue-600 text-white border-blue-400 hover:bg-blue-500'
+                          : 'bg-black text-white border-black hover:bg-gray-800'
                           }`}
                       >
                         Practice
@@ -613,7 +615,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
       {/* New Text Modal */}
       {
         showNewTextModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
             <div
               className={`rounded-3xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
                 }`}>
@@ -730,7 +732,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
       {/* Edit Modal */}
       {
         showEditModal && editingItem && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
             <div className={`rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
               }`}>
               <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
