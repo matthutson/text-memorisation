@@ -12,6 +12,7 @@ import {
   getCachedTexts
 } from '../utils/storage';
 import QuillEditor from './QuillEditor';
+import { Dialog, Button, Flex, Text, TextField, IconButton, Tooltip, Select } from '@radix-ui/themes';
 
 export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode }) {
   const [folders, setFolders] = useState(() => getCachedFolders() || []);
@@ -250,15 +251,15 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
         >
           <div className="p-4">
             <div className="mb-4">
-              <button
+              <Button
+                variant="outline"
+                color="blue"
+                size="3"
+                style={{ width: '100%', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}
                 onClick={() => setShowNewFolderModal(true)}
-                className={`w-full px-4 py-2.5 text-sm font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] border-black ${isDarkMode
-                  ? 'text-blue-400 hover:bg-gray-700'
-                  : 'text-blue-600 hover:bg-gray-50'
-                  }`}
               >
                 New Folder
-              </button>
+              </Button>
             </div>
 
             {/* All Texts */}
@@ -319,35 +320,39 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                         {allTexts.filter(t => t.folderId === folder.id).length}
                       </span>
                       {folder.id !== 'default' && (
-                        <>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleEditFolder(folder);
-                            }}
-                            className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
-                              }`}
-                            title="Edit folder"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDeleteFolder(folder.id);
-                            }}
-                            className={`p-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity ${isDarkMode ? 'hover:bg-gray-600' : 'hover:bg-gray-200'
-                              }`}
-                            title="Delete folder"
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
-                        </>
+                        <span className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ display: 'inline-flex', gap: '2px' }}>
+                          <Tooltip content="Edit folder">
+                            <IconButton
+                              variant="ghost"
+                              size="1"
+                              color="gray"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditFolder(folder);
+                              }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                              </svg>
+                            </IconButton>
+                          </Tooltip>
+                          <Tooltip content="Delete folder">
+                            <IconButton
+                              variant="ghost"
+                              size="1"
+                              color="red"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteFolder(folder.id);
+                              }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                            </IconButton>
+                          </Tooltip>
+                        </span>
                       )}
                     </div>
                   </div>
@@ -540,101 +545,70 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
       </div>
 
       {/* New Folder Modal */}
-      {
-        showNewFolderModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-              }`}>
-              <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                }`}>New Folder</h3>
-              <input
-                type="text"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                placeholder="Folder name"
-                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                  }`}
-                autoFocus
-              />
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowNewFolderModal(false);
-                    setNewFolderName('');
-                  }}
-                  className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
-                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                    }`}
-                >
+      <Dialog.Root open={showNewFolderModal} onOpenChange={(open) => {
+        setShowNewFolderModal(open);
+        if (!open) setNewFolderName('');
+      }}>
+        <Dialog.Content maxWidth="400px">
+          <Dialog.Title>New Folder</Dialog.Title>
+          <Flex direction="column" gap="4" mt="4">
+            <TextField.Root
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              placeholder="Folder name"
+              size="3"
+              autoFocus
+            />
+            <Flex gap="3" justify="end">
+              <Dialog.Close>
+                <Button variant="soft" color="gray" size="2">
                   Cancel
-                </button>
-                <button
-                  onClick={handleCreateFolder}
-                  disabled={!newFolderName.trim()}
-                  className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
-                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                    }`}
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
+                </Button>
+              </Dialog.Close>
+              <Button
+                size="2"
+                onClick={handleCreateFolder}
+                disabled={!newFolderName.trim()}
+              >
+                Create
+              </Button>
+            </Flex>
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
 
       {/* Edit Folder Modal */}
-      {
-        showEditFolderModal && editingFolder && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-            <div className={`rounded-xl max-w-md w-full p-6 border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-              }`}>
-              <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                }`}>Edit Folder</h3>
-              <input
-                type="text"
-                value={newFolderName}
-                onChange={(e) => setNewFolderName(e.target.value)}
-                placeholder="Folder name"
-                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                  }`}
-                autoFocus
-              />
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowEditFolderModal(false);
-                    setEditingFolder(null);
-                    setNewFolderName('');
-                  }}
-                  className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
-                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                    }`}
-                >
+      <Dialog.Root open={showEditFolderModal && !!editingFolder} onOpenChange={(open) => {
+        setShowEditFolderModal(open);
+        if (!open) { setEditingFolder(null); setNewFolderName(''); }
+      }}>
+        <Dialog.Content maxWidth="400px">
+          <Dialog.Title>Edit Folder</Dialog.Title>
+          <Flex direction="column" gap="4" mt="4">
+            <TextField.Root
+              value={newFolderName}
+              onChange={(e) => setNewFolderName(e.target.value)}
+              placeholder="Folder name"
+              size="3"
+              autoFocus
+            />
+            <Flex gap="3" justify="end">
+              <Dialog.Close>
+                <Button variant="soft" color="gray" size="2">
                   Cancel
-                </button>
-                <button
-                  onClick={handleSaveFolder}
-                  disabled={!newFolderName.trim()}
-                  className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
-                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                    }`}
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
+                </Button>
+              </Dialog.Close>
+              <Button
+                size="2"
+                onClick={handleSaveFolder}
+                disabled={!newFolderName.trim()}
+              >
+                Save
+              </Button>
+            </Flex>
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
 
       {/* New Text Modal */}
       {
@@ -706,21 +680,19 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                   isDarkMode={isDarkMode}
                 />
               </div>
-              <select
-                value={newTextFolderId}
-                onChange={(e) => setNewTextFolderId(e.target.value)}
-                className={`w-full px-4 py-3 border-[5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black focus:border-black'
-                  }`}
-              >
-                <option value="default">Uncategorized</option>
-                {folders.filter(f => f.id !== 'default').map((folder) => (
-                  <option key={folder.id} value={folder.id}>
-                    {folder.name}
-                  </option>
-                ))}
-              </select>
+              <div className="mb-4">
+                <Select.Root value={newTextFolderId} onValueChange={setNewTextFolderId} size="3">
+                  <Select.Trigger style={{ width: '100%' }} />
+                  <Select.Content>
+                    <Select.Item value="default">Uncategorized</Select.Item>
+                    {folders.filter(f => f.id !== 'default').map((folder) => (
+                      <Select.Item key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select.Root>
+              </div>
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => {
@@ -826,21 +798,19 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                   isDarkMode={isDarkMode}
                 />
               </div>
-              <select
-                value={editingTextFolderId}
-                onChange={(e) => setEditingTextFolderId(e.target.value)}
-                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-5 transition-colors ${isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black focus:border-black'
-                  }`}
-              >
-                <option value="default">Uncategorized</option>
-                {folders.filter(f => f.id !== 'default').map((folder) => (
-                  <option key={folder.id} value={folder.id}>
-                    {folder.name}
-                  </option>
-                ))}
-              </select>
+              <div className="mb-5">
+                <Select.Root value={editingTextFolderId} onValueChange={setEditingTextFolderId} size="3">
+                  <Select.Trigger style={{ width: '100%' }} />
+                  <Select.Content>
+                    <Select.Item value="default">Uncategorized</Select.Item>
+                    {folders.filter(f => f.id !== 'default').map((folder) => (
+                      <Select.Item key={folder.id} value={folder.id}>
+                        {folder.name}
+                      </Select.Item>
+                    ))}
+                  </Select.Content>
+                </Select.Root>
+              </div>
               <div className="flex gap-3 justify-end">
                 <button
                   onClick={() => {
