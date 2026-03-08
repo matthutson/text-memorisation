@@ -195,8 +195,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
           <button
             onClick={onToggleDarkMode}
             className={`p-2 md:p-2.5 rounded-xl border-[1.5px] transition-colors ${isDarkMode
-              ? 'border-gray-600 hover:bg-gray-700 text-gray-300'
-              : 'border-gray-300 hover:bg-gray-100 text-gray-600'
+              ? 'border-blue-500 bg-gray-700 hover:bg-gray-600 text-blue-300'
+              : 'border-gray-400 bg-gray-100 hover:bg-gray-200 text-gray-700'
               }`}
             title={isDarkMode ? 'Light mode' : 'Dark mode'}
           >
@@ -224,8 +224,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
               setShowNewTextModal(true);
             }}
             className={`px-3 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] ${isDarkMode
-              ? 'bg-white text-black border-white hover:bg-gray-100'
-              : 'bg-black text-white border-black hover:bg-gray-800'
+              ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400'
+              : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
               }`}
           >
             <span className="hidden sm:inline">New Text</span>
@@ -387,8 +387,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                         key={folder.id}
                         onClick={() => setSelectedFolderId(folder.id)}
                         className={`rounded-xl md:rounded-2xl p-3 md:p-5 transition-all group hover:shadow-xl border-2 cursor-pointer ${isDarkMode
-                          ? 'bg-gray-800 border-blue-500 hover:border-blue-400'
-                          : 'bg-white border-gray-900 hover:border-gray-700'
+                          ? 'bg-gray-800 border-blue-500 hover:border-blue-400 shadow-md'
+                          : 'bg-white border-gray-900 hover:border-blue-600 shadow-sm'
                           }`}
                       >
                         <div className="flex items-start justify-between mb-2 md:mb-3">
@@ -448,8 +448,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                     <div
                       key={text.id}
                       className={`rounded-xl md:rounded-2xl p-3 md:p-5 transition-all group hover:shadow-xl border-2 ${isDarkMode
-                        ? 'bg-gray-800 border-blue-500 hover:border-blue-400'
-                        : 'bg-white border-gray-900 hover:border-gray-700'
+                        ? 'bg-gray-800 border-blue-500 hover:border-blue-400 shadow-md'
+                        : 'bg-white border-gray-900 hover:border-blue-600 shadow-sm'
                         }`}
                     >
                       <div className="flex items-start justify-between mb-3">
@@ -502,7 +502,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                               href={text.ultimateGuitarUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500' : 'bg-black text-white border-black hover:bg-gray-800'
+                              className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400' : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
                                 }`}
                               style={{ textDecoration: 'none', fontSize: '10px' }}
                               onClick={(e) => e.stopPropagation()}
@@ -516,7 +516,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                               href={text.soundsliceUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500' : 'bg-black text-white border-black hover:bg-gray-800'
+                              className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400' : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
                                 }`}
                               style={{ textDecoration: 'none', fontSize: '10px' }}
                               onClick={(e) => e.stopPropagation()}
@@ -531,8 +531,8 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                       <button
                         onClick={() => onPracticeText(text)}
                         className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl border-[1.5px] shadow-md hover:shadow-lg ${isDarkMode
-                          ? 'bg-blue-600 text-white border-blue-400 hover:bg-blue-500'
-                          : 'bg-black text-white border-black hover:bg-gray-800'
+                          ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400'
+                          : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
                           }`}
                       >
                         Practice
