@@ -502,13 +502,12 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                               href={text.ultimateGuitarUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className={`no-underline px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400' : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
+                              className={`no-underline px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400' : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
                                 }`}
                               style={{ textDecoration: 'none' }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <span className="hidden sm:inline">Ultimate Guitar</span>
-                              <span className="sm:hidden">UG</span>
+                              Ultimate Guitar
                             </a>
                           )}
                           {text.soundsliceUrl && (
@@ -516,13 +515,12 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                               href={text.soundsliceUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className={`no-underline px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400' : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
+                              className={`no-underline px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400' : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
                                 }`}
                               style={{ textDecoration: 'none' }}
                               onClick={(e) => e.stopPropagation()}
                             >
-                              <span className="hidden sm:inline">Soundslice</span>
-                              <span className="sm:hidden">SS</span>
+                              Soundslice
                             </a>
                           )}
                         </div>
