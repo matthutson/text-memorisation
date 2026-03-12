@@ -174,7 +174,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
           {/* Mobile Menu Button */}
           <button
             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`md:hidden p-2 rounded-lg transition-colors ${isDarkMode
+            className={`md:hidden p-2 rounded-lg border-none bg-transparent transition-colors ${isDarkMode
               ? 'hover:bg-gray-700 text-white'
               : 'hover:bg-gray-100 text-black'
               }`}
@@ -194,9 +194,9 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
         <div className="flex items-center gap-2 md:gap-3">
           <button
             onClick={onToggleDarkMode}
-            className={`p-2 md:p-2.5 rounded-xl border-[1.5px] transition-colors ${isDarkMode
-              ? 'border-blue-500 bg-gray-700 hover:bg-gray-600 text-blue-300'
-              : 'border-gray-400 bg-gray-100 hover:bg-gray-200 text-gray-700'
+            className={`p-2 md:p-2.5 rounded-xl border-none transition-colors ${isDarkMode
+              ? 'bg-gray-700 hover:bg-gray-600 text-blue-300'
+              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
               }`}
             title={isDarkMode ? 'Light mode' : 'Dark mode'}
           >
@@ -447,7 +447,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                   {texts.map(text => (
                     <div
                       key={text.id}
-                      className={`rounded-xl md:rounded-2xl p-3 md:p-5 transition-all group hover:shadow-xl border-2 ${isDarkMode
+                      className={`rounded-xl md:rounded-2xl p-3 md:p-5 transition-all group hover:shadow-xl border-2 flex flex-col ${isDarkMode
                         ? 'bg-gray-800 border-blue-500 hover:border-blue-400 shadow-md'
                         : 'bg-white border-gray-900 hover:border-blue-600 shadow-sm'
                         }`}
@@ -468,9 +468,9 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                         <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2">
                           <button
                             onClick={() => handleEditText(text)}
-                            className={`p-2 rounded-xl transition-all ${isDarkMode
+                            className={`p-1.5 rounded-lg border-none bg-transparent transition-all ${isDarkMode
                               ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
-                              : 'hover:bg-gray-100 text-gray-600 hover:text-black'
+                              : 'hover:bg-gray-100 text-gray-500 hover:text-black'
                               }`}
                             title="Edit"
                           >
@@ -481,9 +481,9 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                           </button>
                           <button
                             onClick={() => handleDeleteText(text.id)}
-                            className={`p-2 rounded-xl transition-all ${isDarkMode
+                            className={`p-1.5 rounded-lg border-none bg-transparent transition-all ${isDarkMode
                               ? 'hover:bg-red-900 text-gray-400 hover:text-red-400'
-                              : 'hover:bg-red-50 text-gray-600 hover:text-red-600'
+                              : 'hover:bg-red-50 text-gray-500 hover:text-red-600'
                               }`}
                             title="Delete"
                           >
@@ -496,15 +496,15 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
 
                       {/* External Links */}
                       {(text.ultimateGuitarUrl || text.soundsliceUrl) && (
-                        <div className="flex gap-1 mb-3" style={{ flexWrap: 'wrap' }}>
+                        <div className="flex gap-2 mb-3" style={{ flexWrap: 'wrap' }}>
                           {text.ultimateGuitarUrl && (
                             <a
                               href={text.ultimateGuitarUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400' : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
+                              className={`no-underline px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400' : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
                                 }`}
-                              style={{ textDecoration: 'none', fontSize: '10px' }}
+                              style={{ textDecoration: 'none' }}
                               onClick={(e) => e.stopPropagation()}
                             >
                               <span className="hidden sm:inline">Ultimate Guitar</span>
@@ -516,9 +516,9 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                               href={text.soundsliceUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400' : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
+                              className={`no-underline px-3 py-1.5 md:px-4 md:py-2 text-xs md:text-sm font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400' : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
                                 }`}
-                              style={{ textDecoration: 'none', fontSize: '10px' }}
+                              style={{ textDecoration: 'none' }}
                               onClick={(e) => e.stopPropagation()}
                             >
                               <span className="hidden sm:inline">Soundslice</span>
@@ -530,7 +530,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
 
                       <button
                         onClick={() => onPracticeText(text)}
-                        className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl border-[1.5px] shadow-md hover:shadow-lg ${isDarkMode
+                        className={`w-full mt-auto px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl border-[1.5px] shadow-md hover:shadow-lg ${isDarkMode
                           ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400'
                           : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
                           }`}
