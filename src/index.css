@@ -865,8 +865,6 @@ textarea::placeholder {
  * their own background, padding, and border styles.
  */
 button:not([class*="rt-"]):not([data-radix-collection-item]) {
-  border: none;
-  background: none;
   padding: 0;
   font: inherit;
   cursor: pointer;
