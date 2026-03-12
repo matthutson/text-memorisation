@@ -223,7 +223,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
               setNewTextFolderId(selectedFolderId === 'all' ? 'default' : selectedFolderId);
               setShowNewTextModal(true);
             }}
-            className={`px-3 md:px-5 py-2 md:py-2.5 text-xs md:text-sm font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] ${isDarkMode
+            className={`px-3 md:px-5 py-2 md:py-2.5 text-xs font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] ${isDarkMode
               ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400'
               : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
               }`}
@@ -705,7 +705,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                     setNewTextSoundsliceUrl('');
                     setNewTextContent('');
                   }}
-                  className={`px-5 py-2.5 rounded-xl border-[1.5px] text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
+                  className={`px-5 py-2.5 rounded-xl border-[1.5px] text-xs font-bold uppercase tracking-wider transition-colors ${isDarkMode
                     ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
                     : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
                     }`}
@@ -715,7 +715,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                 <button
                   onClick={handleCreateText}
                   disabled={!newItemName.trim() || !newTextContent.trim()}
-                  className={`px-5 py-2.5 rounded-xl border-[1.5px] text-sm font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
+                  className={`px-5 py-2.5 rounded-xl border-[1.5px] text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
                     ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
                     : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
                     }`}
