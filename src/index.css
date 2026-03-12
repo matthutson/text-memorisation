@@ -647,6 +647,10 @@ body {
   opacity: 1;
 }
 
+.hidden {
+  display: none;
+}
+
 /* Responsive: sm (640px+) */
 @media (min-width: 640px) {
   .sm\:grid-cols-2 {
@@ -1052,9 +1056,6 @@ select:not([class*="rt-"]) {
   color: #9ca3af;
 }
 
-.hidden {
-  display: none;
-}
 
 .inline-block {
   display: inline-block;
