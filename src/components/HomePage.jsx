@@ -494,47 +494,48 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                         </div>
                       </div>
 
-                      {/* External Links */}
-                      {(text.ultimateGuitarUrl || text.soundsliceUrl) && (
-                        <div className="flex gap-1 mb-3" style={{ flexWrap: 'wrap' }}>
-                          {text.ultimateGuitarUrl && (
-                            <a
-                              href={text.ultimateGuitarUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-white text-black border-white hover:bg-gray-200' : 'bg-black text-white border-black hover:bg-gray-800'
-                                }`}
-                              style={{ textDecoration: 'none', fontSize: '9px' }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Ultimate Guitar
-                            </a>
-                          )}
-                          {text.soundsliceUrl && (
-                            <a
-                              href={text.soundsliceUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-white text-black border-white hover:bg-gray-200' : 'bg-black text-white border-black hover:bg-gray-800'
-                                }`}
-                              style={{ textDecoration: 'none', fontSize: '9px' }}
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              Soundslice
-                            </a>
-                          )}
-                        </div>
-                      )}
-
-                      <button
-                        onClick={() => onPracticeText(text)}
-                        className={`w-full mt-auto px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl border-[1.5px] shadow-md hover:shadow-lg ${isDarkMode
-                          ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400'
-                          : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
-                          }`}
-                      >
-                        Practice
-                      </button>
+                      {/* Bottom actions - always pinned to bottom of card */}
+                      <div className="mt-auto">
+                        {(text.ultimateGuitarUrl || text.soundsliceUrl) && (
+                          <div className="flex gap-1 mb-2" style={{ flexWrap: 'wrap' }}>
+                            {text.ultimateGuitarUrl && (
+                              <a
+                                href={text.ultimateGuitarUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-white text-black border-white hover:bg-gray-200' : 'bg-black text-white border-black hover:bg-gray-800'
+                                  }`}
+                                style={{ textDecoration: 'none', fontSize: '9px' }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Ultimate Guitar
+                              </a>
+                            )}
+                            {text.soundsliceUrl && (
+                              <a
+                                href={text.soundsliceUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-white text-black border-white hover:bg-gray-200' : 'bg-black text-white border-black hover:bg-gray-800'
+                                  }`}
+                                style={{ textDecoration: 'none', fontSize: '9px' }}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                Soundslice
+                              </a>
+                            )}
+                          </div>
+                        )}
+                        <button
+                          onClick={() => onPracticeText(text)}
+                          className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl border-[1.5px] shadow-md hover:shadow-lg ${isDarkMode
+                            ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400'
+                            : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
+                            }`}
+                        >
+                          Practice
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
