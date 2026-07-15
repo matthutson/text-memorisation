@@ -14,9 +14,8 @@ import {
 import QuillEditor from './QuillEditor';
 import { Dialog, Button, Flex, Text, TextField, IconButton, Tooltip, Select } from '@radix-ui/themes';
 
-export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode }) {
+export default function HomePage({ onPracticeText, selectedFolderId = 'all', onSelectFolder, isDarkMode, onToggleDarkMode }) {
   const [folders, setFolders] = useState(() => getCachedFolders() || []);
-  const [selectedFolderId, setSelectedFolderId] = useState('all');
   const [allTexts, setAllTexts] = useState(() => {
     const cached = getCachedTexts();
     return cached ? cached.sort((a, b) => b.createdAt - a.createdAt) : [];
@@ -112,7 +111,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
     if (confirm('Delete this folder? All texts will be moved to Uncategorized.')) {
       await deleteFolder(folderId);
       if (selectedFolderId === folderId) {
-        setSelectedFolderId('all');
+        onSelectFolder('all');
       }
       await loadData();
     }
@@ -265,7 +264,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
             {/* All Texts */}
             <div
               onClick={() => {
-                setSelectedFolderId('all');
+                onSelectFolder('all');
                 setIsSidebarOpen(false);
               }}
               className={`px-4 py-3 rounded-xl cursor-pointer transition-all mb-2 border-[1.5px] ${selectedFolderId === 'all'
@@ -306,7 +305,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                     <span
                       className="text-sm cursor-pointer flex-1"
                       onClick={() => {
-                        setSelectedFolderId(folder.id);
+                        onSelectFolder(folder.id);
                         setIsSidebarOpen(false);
                       }}
                     >
@@ -385,7 +384,7 @@ export default function HomePage({ onPracticeText, isDarkMode, onToggleDarkMode 
                     return (
                       <div
                         key={folder.id}
-                        onClick={() => setSelectedFolderId(folder.id)}
+                        onClick={() => onSelectFolder(folder.id)}
                         className={`rounded-xl md:rounded-2xl p-3 md:p-5 transition-all group hover:shadow-xl border-2 cursor-pointer ${isDarkMode
                           ? 'bg-gray-800 border-blue-500 hover:border-blue-400 shadow-md'
                           : 'bg-white border-gray-900 hover:border-blue-600 shadow-sm'
