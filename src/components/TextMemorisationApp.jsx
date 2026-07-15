@@ -2,41 +2,9 @@ import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Dropzone } from 'dropzone';
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import AudioPlayer from 'osmd-audio-player';
+import { Flex, Button, IconButton, Slider as RadixSlider, Separator, Text, Tooltip } from '@radix-ui/themes';
 import { updateText } from '../utils/storage';
 import StemPlayerWrapper from './StemPlayerWrapper';
-
-// A simple, self-contained Slider component to replace the external dependency.
-const Slider = ({ sliderProps }) => {
-  return (
-    <div className="relative flex items-center select-none touch-none w-full h-5">
-      <input
-        type="range"
-        className="w-full h-1 bg-gray-200 rounded-full appearance-none cursor-pointer"
-        {...sliderProps}
-      />
-      {/* Basic styling for the slider thumb to make it consistent across browsers */}
-      <style>{`
-        input[type=range]::-webkit-slider-thumb {
-          -webkit-appearance: none;
-          appearance: none;
-          width: 12px;
-          height: 12px;
-          background: black;
-          border-radius: 50%;
-          cursor: pointer;
-          margin-top: -3.5px; /* Vertically center the thumb on the track */
-        }
-        input[type=range]::-moz-range-thumb {
-          width: 12px;
-          height: 12px;
-          background: black;
-          border-radius: 50%;
-          cursor: pointer;
-        }
-      `}</style>
-    </div>
-  );
-};
 
 export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
   const [text, setText] = useState(initialText);
@@ -54,12 +22,12 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     }
   }, [textData?.id, textData?.stems]); // Re-run when textData or stems change
   const [isStemPlayerVisible, setIsStemPlayerVisible] = useState(false);
-  const [isMobileControlsOpen, setIsMobileControlsOpen] = useState(false);
+  const [isControlsExpanded, setIsControlsExpanded] = useState(false);
   const [isYouTubeVisible, setIsYouTubeVisible] = useState(false);
   const [visibility, setVisibility] = useState(100);
   const [isEditing, setIsEditing] = useState(!initialText);
-  const [fontSize, setFontSize] = useState(16);
-  const [columnWidth, setColumnWidth] = useState(240);
+  const [fontSize, setFontSize] = useState(() => window.innerWidth < 768 ? 10 : 12);
+  const [columnWidth, setColumnWidth] = useState(() => window.innerWidth < 768 ? 100 : 160);
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(5); // Speed from 1-10
   const [countdownProgress, setCountdownProgress] = useState(100);
@@ -266,7 +234,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       if (lineIsChord[lineIdx]) {
         // Keep chord lines fully visible with special styling
         result.push(
-          <div key={lineIdx} style={{ color: '#3b82f6', fontWeight: '400' }}>
+          <div key={lineIdx} style={{ color: '#3b82f6', fontWeight: '400', lineHeight: '1.1', marginBottom: 0, paddingBottom: 0 }}>
             {line || ' '}
           </div>
         );
@@ -629,9 +597,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     }
 
     // Start countdown and scrolling
-    // Speed 1 = 24 seconds, Speed 10 = 8 seconds
-    // Formula: delay = 25778 - (speed * 1778)
-    const delayMs = 25778 - (autoScrollSpeed * 1778);
+    // Speed 1 = 36s (slowest), Speed 10 = 4s (fastest)
+    // Formula: delayMs = 39556 - (speed * 3556)
+    const delayMs = 39556 - (autoScrollSpeed * 3556);
     const startTime = Date.now();
 
     // Animate the countdown bar
@@ -656,9 +624,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         const maxScroll = container.scrollWidth - container.clientWidth;
 
         if (currentScroll + columnWithGap <= maxScroll) {
-          container.scrollLeft = currentScroll + columnWithGap;
+          container.scrollTo({ left: currentScroll + columnWithGap, behavior: 'smooth' });
         } else {
-          container.scrollLeft = 0; // Loop to start (padding will show)
+          container.scrollTo({ left: 0, behavior: 'smooth' });
         }
 
         // Trigger re-run of this effect
@@ -723,545 +691,252 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
           </div>
         ) : (
           <div className="flex flex-col h-full overflow-hidden">
-            {/* Minimalist Control Bar */}
-            <div className={`border-b px-2 md:px-4 py-2 flex items-center gap-2 md:gap-4 flex-shrink-0 flex-wrap transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
-              }`}>
-              <button
-                onClick={handleReset}
-                className={`transition-colors flex-shrink-0 ${isDarkMode ? 'text-white hover:text-gray-400' : 'text-black hover:text-gray-600'
-                  }`}
-                title="Back"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M19 12H5M12 19l-7-7 7-7" />
-                </svg>
-              </button>
+            {/* Unified Control Bar — visible on all screen sizes */}
+            <div className={`border-b flex-shrink-0 transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
+              {/* Row 1: Navigation + Core Controls */}
+              <Flex align="center" gap="3" wrap="wrap" px="3" py="2">
+                {/* Back button */}
+                <Tooltip content="Back to list">
+                  <IconButton variant="ghost" size="3" onClick={handleReset} style={{ flexShrink: 0 }}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <path d="M19 12H5M12 19l-7-7 7-7" />
+                    </svg>
+                  </IconButton>
+                </Tooltip>
 
-              {/* Tab switcher */}
-              <div className="flex items-center gap-1 flex-shrink-0">
-                <button
-                  onClick={() => setCurrentTab('text')}
-                  className={`px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors ${currentTab === 'text'
-                    ? (isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black')
-                    : (isDarkMode
-                      ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                      : 'text-gray-600 hover:text-black hover:bg-gray-100')
-                    }`}
+                {/* Tab switcher */}
+                <Flex gap="1" shrink="0">
+                  <Button
+                    variant={currentTab === 'text' ? 'solid' : 'soft'}
+                    color="gray"
+                    size="2"
+                    onClick={() => setCurrentTab('text')}
+                    style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '12px' }}
+                  >
+                    Text
+                  </Button>
+                  <Button
+                    variant={currentTab === 'music' ? 'solid' : 'soft'}
+                    color="gray"
+                    size="2"
+                    onClick={() => setCurrentTab('music')}
+                    style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '12px' }}
+                  >
+                    Music
+                  </Button>
+                </Flex>
+
+                <Separator orientation="vertical" size="1" />
+
+                {/* Backing Tracks toggle */}
+                <Button
+                  variant={isStemPlayerVisible ? 'solid' : 'soft'}
+                  color={isStemPlayerVisible ? 'blue' : 'gray'}
+                  size="2"
+                  onClick={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
+                  style={{ flexShrink: 0 }}
                 >
-                  Text
-                </button>
-                <button
-                  onClick={() => setCurrentTab('music')}
-                  className={`px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors ${currentTab === 'music'
-                    ? (isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black')
-                    : (isDarkMode
-                      ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                      : 'text-gray-600 hover:text-black hover:bg-gray-100')
-                    }`}
-                >
-                  Music
-                </button>
-              </div>
+                  Tracks
+                </Button>
 
-              <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                }`} />
+                {/* Reveal slider — text tab only */}
+                {currentTab === 'text' && (
+                  <>
+                    <Separator orientation="vertical" size="1" />
+                    <Flex align="center" gap="2" shrink="0">
+                      <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hide Text</Text>
+                      <div style={{ width: 80 }}>
+                        <RadixSlider
+                          value={[visibility]}
+                          onValueChange={(val) => setVisibility(val[0])}
+                          min={0}
+                          max={100}
+                          step={5}
+                          size="2"
+                        />
+                      </div>
+                      <Text size="2" style={{ width: 40, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{visibility}%</Text>
+                    </Flex>
+                  </>
+                )}
 
-              <div className="flex-1 hidden md:block" />
+                <div style={{ flex: 1 }} />
 
-              {/* Backing Tracks (always visible) */}
-              <button
-                onClick={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
-                className={`px-2 md:px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isStemPlayerVisible
-                  ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
-                  : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
-                  }`}
-                title={isStemPlayerVisible ? 'Hide Backing Tracks' : 'Show Backing Tracks'}
-              >
-                <span className="hidden sm:inline">{isStemPlayerVisible ? 'Hide' : 'Show'} Tracks</span>
-                <span className="sm:hidden">Tracks</span>
-              </button>
+                {/* Settings toggle + Dark mode — full row height with gap */}
+                {currentTab === 'text' && (
+                  <button
+                    onClick={() => setIsControlsExpanded(!isControlsExpanded)}
+                    className={`md:!hidden flex items-center justify-center px-2 -my-2 transition-colors ${isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                    title="Settings"
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ transform: isControlsExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                )}
 
-              {/* Reveal Text Buttons/Slider - shown when in text tab */}
+                <Tooltip content={isDarkMode ? 'Light mode' : 'Dark mode'}>
+                  <button
+                    onClick={onToggleDarkMode}
+                    className={`flex items-center justify-center px-2 -my-2 transition-colors ${isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
+                  >
+                    {isDarkMode ? (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="5" />
+                        <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                        <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                      </svg>
+                    )}
+                  </button>
+                </Tooltip>
+              </Flex>
+
+              {/* Row 2: Text-specific controls — Font, Width, Auto-scroll, Metronome */}
+              {/* Collapsible on mobile (via chevron toggle), always visible on md+ */}
               {currentTab === 'text' && (
-                <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                  <span className={`text-xs uppercase tracking-wider font-medium hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                    }`}>Reveal</span>
-                  {/* Mobile: Show +/- buttons */}
-                  <div className="flex items-center gap-1 sm:hidden">
-                    <button
-                      onClick={() => setVisibility(Math.max(0, visibility - 10))}
-                      className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-black hover:bg-gray-300'}`}
-                    >
-                      <span className="text-lg leading-none">−</span>
-                    </button>
-                    <span className={`text-xs font-medium w-10 text-center transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                      }`}>{visibility}%</span>
-                    <button
-                      onClick={() => setVisibility(Math.min(100, visibility + 10))}
-                      className={`w-7 h-7 flex items-center justify-center rounded transition-colors ${isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-gray-200 text-black hover:bg-gray-300'}`}
-                    >
-                      <span className="text-lg leading-none">+</span>
-                    </button>
-                  </div>
-                  {/* Desktop: Show slider */}
-                  <div className="hidden sm:flex items-center gap-2">
-                    <div className="w-20">
-                      <Slider
-                        sliderProps={{
-                          value: visibility,
-                          onChange: (e) => setVisibility(parseInt(e.target.value)),
-                          min: 0,
-                          max: 100,
-                          step: 5
-                        }}
-                      />
-                    </div>
-                    <span className={`text-sm font-light w-10 text-right transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                      }`}>{visibility}%</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Font Size & Column Width - Desktop only, shown when in text tab */}
-              {currentTab === 'text' && (
-                <>
-                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
-
+                <Flex align="center" gap="3" wrap="wrap" px="3" py="2" className={`${isControlsExpanded ? '' : 'hidden'} md:!flex`} style={{ borderTop: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb' }}>
                   {/* Font Size */}
-                  <div className="hidden md:flex items-center gap-2">
-                    <button
-                      onClick={() => setFontSize(Math.max(12, fontSize - 2))}
-                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                        }`}
-                    >
-                      <span className="text-sm font-bold">−</span>
-                    </button>
-                    <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Font</span>
-                    <button
-                      onClick={() => setFontSize(Math.min(24, fontSize + 2))}
-                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                        }`}
-                    >
-                      <span className="text-sm font-bold">+</span>
-                    </button>
-                  </div>
+                  <Flex align="center" gap="2" shrink="0">
+                    <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Font</Text>
+                    <IconButton variant="outline" size="3" onClick={() => setFontSize(Math.max(10, fontSize - 2))}>
+                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
+                    </IconButton>
+                    <Text size="2" style={{ width: 24, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{fontSize}</Text>
+                    <IconButton variant="outline" size="3" onClick={() => setFontSize(Math.min(24, fontSize + 2))}>
+                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
+                    </IconButton>
+                  </Flex>
 
-                  <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'}`} />
+                  <Separator orientation="vertical" size="1" />
 
                   {/* Column Width */}
-                  <div className="hidden md:flex items-center gap-2">
-                    <button
-                      onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
-                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                        }`}
-                    >
-                      <span className="text-sm font-bold">−</span>
-                    </button>
-                    <span className={`text-xs uppercase tracking-wider font-medium px-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                      }`}>Width</span>
-                    <button
-                      onClick={() => setColumnWidth(Math.max(200, columnWidth - 20))}
-                      className={`w-7 h-7 rounded-lg border-[1.5px] transition-all flex items-center justify-center ${isDarkMode
-                        ? 'border-gray-600 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border-gray-300 hover:border-black hover:bg-gray-50'
-                        }`}
-                    >
-                      <span className="text-sm font-bold">+</span>
-                    </button>
-                  </div>
-                </>
-              )}
+                  <Flex align="center" gap="2" shrink="0">
+                    <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Width</Text>
+                    <IconButton variant="outline" size="3" onClick={() => setColumnWidth(Math.max(100, columnWidth - 20))}>
+                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
+                    </IconButton>
+                    <Text size="2" style={{ width: 32, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{columnWidth}</Text>
+                    <IconButton variant="outline" size="3" onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}>
+                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
+                    </IconButton>
+                  </Flex>
 
+                  <Separator orientation="vertical" size="1" />
 
-              {/* Auto-scroll toggle - shown when in text tab */}
-              {currentTab === 'text' && (
-                <button
-                  onClick={() => setIsAutoAdvancing(!isAutoAdvancing)}
-                  className={`px-2 md:px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isAutoAdvancing
-                    ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
-                    : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
-                    }`}
-                  title={isAutoAdvancing ? 'Stop auto-scroll' : 'Start auto-scroll'}
-                >
-                  <span className="hidden sm:inline">Auto</span>
-                  <span className="sm:hidden">▶</span>
-                </button>
-              )}
-
-              {/* Metronome toggle - shown when in text tab */}
-              {currentTab === 'text' && (
-                <button
-                  onClick={() => setIsMetronomeActive(!isMetronomeActive)}
-                  className={`px-2 md:px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors flex-shrink-0 ${isMetronomeActive
-                    ? (isDarkMode ? 'bg-blue-600 text-white' : 'bg-black text-white')
-                    : (isDarkMode ? 'bg-gray-700 text-gray-300 hover:bg-gray-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300')
-                    }`}
-                  title={isMetronomeActive ? 'Stop metronome' : 'Start metronome'}
-                >
-                  <span className="hidden sm:inline">Metro</span>
-                  <span className="sm:hidden">♩</span>
-                </button>
-              )}
-
-              <div className="flex-1 md:hidden" />
-
-              {/* Mobile Menu Button */}
-              <button
-                onClick={() => setIsMobileControlsOpen(!isMobileControlsOpen)}
-                className={`md:hidden transition-colors flex-shrink-0 ${isDarkMode ? 'text-white hover:text-gray-400' : 'text-black hover:text-gray-600'
-                  }`}
-                title="More Settings"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="3" y1="12" x2="21" y2="12" />
-                  <line x1="3" y1="6" x2="21" y2="6" />
-                  <line x1="3" y1="18" x2="21" y2="18" />
-                </svg>
-              </button>
-
-              {/* Desktop-only Controls */}
-              <div className="hidden md:flex md:items-center md:gap-4">
-                <div className={`h-4 w-px transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                  }`} />
-
-                {/* Dark mode toggle */}
-                <button
-                  onClick={onToggleDarkMode}
-                  className={`transition-colors ${isDarkMode ? 'text-white hover:text-gray-400' : 'text-black hover:text-gray-600'
-                    }`}
-                  title={isDarkMode ? 'Light mode' : 'Dark mode'}
-                >
-                  {isDarkMode ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="5" />
-                      <line x1="12" y1="1" x2="12" y2="3" />
-                      <line x1="12" y1="21" x2="12" y2="23" />
-                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                      <line x1="1" y1="12" x2="3" y2="12" />
-                      <line x1="21" y1="12" x2="23" y2="12" />
-                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-                    </svg>
-                  ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                    </svg>
-                  )}
-                </button>
-
-                {/* Stem Player Toggle */}
-                <button
-                  onClick={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
-                  className={`px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors ${isStemPlayerVisible
-                    ? (isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black')
-                    : (isDarkMode
-                      ? 'text-gray-400 hover:text-gray-200 hover:bg-gray-800'
-                      : 'text-gray-600 hover:text-black hover:bg-gray-100')
-                    }`}
-                  title={isStemPlayerVisible ? 'Hide Backing Tracks' : 'Show Backing Tracks'}
-                >
-                  {isStemPlayerVisible ? 'Hide' : 'Show'} Backing Tracks
-                </button>
-
-                {currentTab === 'text' && (
-                  <>
-                    <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                      }`} />
-
-                    {/* Visibility */}
-                    <div className="flex items-center gap-2 md:gap-3">
-                      <span className={`text-xs uppercase tracking-wider font-medium transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>Reveal</span>
-                      <div className="w-20">
-                        <Slider
-                          sliderProps={{
-                            value: visibility,
-                            onChange: (e) => setVisibility(parseInt(e.target.value)),
-                            min: 0,
-                            max: 100,
-                            step: 5
-                          }}
-                        />
-                      </div>
-                      <span className={`text-sm font-light w-10 text-right transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                        }`}>{visibility}%</span>
-                    </div>
-                  </>
-                )}
-
-                {currentTab === 'text' && (
-                  <>
-                    <div className="flex-grow" />
-
-                    {/* Column Navigation */}
-                    <div className="flex items-center gap-2 md:gap-3">
-                      <button
-                        onClick={() => {
-                          if (!scrollContainerRef.current) return;
-                          const container = scrollContainerRef.current;
-                          const columnWithGap = columnWidth + 48;
-                          const newScroll = Math.max(0, container.scrollLeft - columnWithGap);
-                          container.scrollLeft = newScroll;
-                        }}
-                        className={`transition-colors ${isDarkMode ? 'text-white hover:text-gray-400' : 'text-black hover:text-gray-600'
-                          }`}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M15 18l-6-6 6-6" />
-                        </svg>
-                      </button>
-                      <span className={`text-sm font-light hidden sm:inline transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                        }`}>
-                        Column
-                      </span>
-                      <button
-                        onClick={() => {
-                          if (!scrollContainerRef.current) return;
-                          const container = scrollContainerRef.current;
-                          const columnWithGap = columnWidth + 48;
-                          const maxScroll = container.scrollWidth - container.clientWidth;
-                          const newScroll = Math.min(maxScroll, container.scrollLeft + columnWithGap);
-                          container.scrollLeft = newScroll;
-                        }}
-                        className={`transition-colors ${isDarkMode ? 'text-white hover:text-gray-400' : 'text-black hover:text-gray-600'
-                          }`}
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                          <path d="M9 18l6-6-6-6" />
-                        </svg>
-                      </button>
-                    </div>
-
-                    <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                      }`} />
-
-                    {/* Auto-Advance */}
-                    <div className="flex items-center gap-2 md:gap-3">
-                      <button
-                        onClick={() => setIsAutoAdvancing(!isAutoAdvancing)}
-                        className={`px-3 py-1 text-xs uppercase tracking-wider font-medium transition-colors ${isAutoAdvancing
-                          ? (isDarkMode ? 'bg-gray-700 text-white hover:bg-gray-600' : 'bg-black text-white hover:bg-gray-800')
-                          : (isDarkMode
-                            ? 'border border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                            : 'border border-gray-300 text-black hover:border-black hover:bg-gray-50')
-                          }`}
-                      >
-                        {isAutoAdvancing ? 'Stop' : 'Auto'}
-                      </button>
-                      <span className={`text-xs uppercase tracking-wider font-medium hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                        }`}>Speed</span>
-                      <div className="w-32">
-                        <Slider
-                          sliderProps={{
-                            value: autoScrollSpeed,
-                            onChange: (e) => setAutoScrollSpeed(parseInt(e.target.value)),
-                            min: 1,
-                            max: 10,
-                            step: 1
-                          }}
-                        />
-                      </div>
-                      <span className={`text-sm font-light w-4 text-right tabular-nums transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                        }`}>{autoScrollSpeed}</span>
-                      <span className={`text-xs hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                        }`}>({Math.round((13000 - (autoScrollSpeed * 900)) / 1000)}s)</span>
-                    </div>
-
-                    <div className={`h-4 w-px hidden md:block transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-200'
-                      }`} />
-                  </>
-                )}
-
-                {/* Metronome */}
-                <div className="flex items-center gap-2 md:gap-3">
-                  <button
-                    onClick={() => setIsMetronomeActive(prev => !prev)}
-                    className={`px-3 py-1 text-xs uppercase tracking-wider font-medium min-w-[48px] rounded-xl transition-colors ${isMetronomeActive
-                      ? (isDarkMode ? 'bg-green-700 text-white hover:bg-green-600' : 'bg-green-800 text-white hover:bg-green-900')
-                      : (isDarkMode
-                        ? 'border border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                        : 'border border-gray-300 text-black hover:border-black hover:bg-gray-50')
-                      }`}
-                    title={isMetronomeActive ? 'Stop metronome' : 'Start metronome'}
-                  >
-                    {isMetronomeActive ? 'ON' : 'OFF'}
-                  </button>
-                  <input
-                    type="number"
-                    value={metronomeBPM}
-                    onChange={(e) => setMetronomeBPM(Math.max(20, Math.min(250, parseInt(e.target.value) || 120)))}
-                    className={`w-16 px-2 py-1 text-sm text-center border-[1.5px] focus:outline-none transition-colors ${isDarkMode
-                      ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-500'
-                      : 'border-gray-300 bg-white text-black focus:border-black'
-                      }`}
-                    min="20"
-                    max="250"
-                    title="BPM"
-                  />
-                  <span className={`text-xs hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                    }`}>bpm</span>
-                  <input
-                    type="number"
-                    value={metronomeMeter}
-                    onChange={(e) => setMetronomeMeter(Math.max(1, Math.min(12, parseInt(e.target.value) || 4)))}
-                    className={`w-12 px-2 py-1 text-sm text-center border-[1.5px] focus:outline-none transition-colors ${isDarkMode
-                      ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-500'
-                      : 'border-gray-300 bg-white text-black focus:border-black'
-                      }`}
-                    min="1"
-                    max="12"
-                    title="Time signature (beats per measure)"
-                  />
-                  <span className={`text-xs hidden sm:inline transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                    }`}>/4</span>
-                </div>
-              </div> {/* Close desktop controls wrapper */}
-            </div>
-
-            {/* Mobile Controls Drawer */}
-            {isMobileControlsOpen && (
-              <>
-                <div
-                  className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
-                  onClick={() => setIsMobileControlsOpen(false)}
-                />
-                <div className={`md:hidden fixed bottom-0 left-0 right-0 z-50 p-4 rounded-t-2xl max-h-[70vh] overflow-y-auto transition-colors ${isDarkMode ? 'bg-gray-800' : 'bg-white'
-                  }`}>
-                  <div className="flex items-center justify-between mb-4 pb-3 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}">
-                    <h3 className={`font-semibold ${isDarkMode ? 'text-white' : 'text-black'}`}>Settings</h3>
-                    <button
-                      onClick={() => setIsMobileControlsOpen(false)}
-                      className={`p-1 transition-colors ${isDarkMode ? 'text-gray-400 hover:text-white' : 'text-gray-600 hover:text-black'}`}
-                    >
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <line x1="18" y1="6" x2="6" y2="18" />
-                        <line x1="6" y1="6" x2="18" y2="18" />
+                  {/* Column Navigation */}
+                  <Flex align="center" gap="1" shrink="0">
+                    <IconButton variant="ghost" size="3" onClick={() => {
+                      if (!scrollContainerRef.current) return;
+                      const container = scrollContainerRef.current;
+                      const columnWithGap = columnWidth + 48;
+                      container.scrollLeft = Math.max(0, container.scrollLeft - columnWithGap);
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M15 18l-6-6 6-6" />
                       </svg>
-                    </button>
-                  </div>
+                    </IconButton>
+                    <Text size="1" color="gray">Col</Text>
+                    <IconButton variant="ghost" size="3" onClick={() => {
+                      if (!scrollContainerRef.current) return;
+                      const container = scrollContainerRef.current;
+                      const columnWithGap = columnWidth + 48;
+                      const maxScroll = container.scrollWidth - container.clientWidth;
+                      container.scrollLeft = Math.min(maxScroll, container.scrollLeft + columnWithGap);
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </IconButton>
+                  </Flex>
 
-                  <div className="space-y-4">
-                    {/* Dark Mode */}
-                    <div className="flex items-center justify-between">
-                      <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Dark Mode</span>
-                      <button
-                        onClick={onToggleDarkMode}
-                        className={`px-4 py-2 rounded-lg transition-colors ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-black'}`}
-                      >
-                        {isDarkMode ? 'On' : 'Off'}
-                      </button>
-                    </div>
+                  <Separator orientation="vertical" size="1" />
 
-                    {currentTab === 'text' && (
+                  {/* Auto-Advance */}
+                  <Flex align="center" gap="2" shrink="0">
+                    <Button
+                      variant={isAutoAdvancing ? 'solid' : 'outline'}
+                      color={isAutoAdvancing ? 'blue' : 'gray'}
+                      size="2"
+                      onClick={() => setIsAutoAdvancing(!isAutoAdvancing)}
+                    >
+                      {isAutoAdvancing ? 'Stop' : 'Auto'}
+                    </Button>
+                    {isAutoAdvancing && (
                       <>
-                        {/* Font Size */}
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Font Size</span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setFontSize(Math.max(12, fontSize - 2))}
-                              className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
-                                ? 'bg-gray-700 text-white hover:bg-gray-600'
-                                : 'bg-gray-200 text-black hover:bg-gray-300'
-                                }`}
-                            >
-                              −
-                            </button>
-                            <span className={`text-sm w-8 text-center ${isDarkMode ? 'text-white' : 'text-black'}`}>{fontSize}</span>
-                            <button
-                              onClick={() => setFontSize(Math.min(24, fontSize + 2))}
-                              className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
-                                ? 'bg-gray-700 text-white hover:bg-gray-600'
-                                : 'bg-gray-200 text-black hover:bg-gray-300'
-                                }`}
-                            >
-                              +
-                            </button>
-                          </div>
+                        <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Speed</Text>
+                        <div style={{ width: 80 }}>
+                          <RadixSlider
+                            value={[autoScrollSpeed]}
+                            onValueChange={(val) => setAutoScrollSpeed(val[0])}
+                            min={1}
+                            max={10}
+                            step={1}
+                            size="2"
+                          />
                         </div>
-
-                        {/* Column Width */}
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Column Width</span>
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}
-                              className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
-                                ? 'bg-gray-700 text-white hover:bg-gray-600'
-                                : 'bg-gray-200 text-black hover:bg-gray-300'
-                                }`}
-                            >
-                              −
-                            </button>
-                            <span className={`text-sm w-12 text-center ${isDarkMode ? 'text-white' : 'text-black'}`}>{columnWidth}</span>
-                            <button
-                              onClick={() => setColumnWidth(Math.max(160, columnWidth - 20))}
-                              className={`w-8 h-8 rounded-lg transition-colors flex items-center justify-center ${isDarkMode
-                                ? 'bg-gray-700 text-white hover:bg-gray-600'
-                                : 'bg-gray-200 text-black hover:bg-gray-300'
-                                }`}
-                            >
-                              +
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Auto-scroll Speed */}
-                        {isAutoAdvancing && (
-                          <div className="flex items-center justify-between">
-                            <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>Auto-scroll Speed</span>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="range"
-                                value={autoScrollSpeed}
-                                onChange={(e) => setAutoScrollSpeed(parseInt(e.target.value))}
-                                min="1"
-                                max="10"
-                                step="1"
-                                className="w-24"
-                              />
-                              <span className={`text-sm w-8 text-center ${isDarkMode ? 'text-white' : 'text-black'}`}>{autoScrollSpeed}</span>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* BPM */}
-                        {isMetronomeActive && (
-                          <div className="flex items-center justify-between">
-                            <span className={`text-sm ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>BPM</span>
-                            <input
-                              type="number"
-                              value={metronomeBPM}
-                              onChange={(e) => setMetronomeBPM(Math.max(20, Math.min(250, parseInt(e.target.value) || 120)))}
-                              className={`w-20 px-3 py-2 text-sm text-center rounded-lg focus:outline-none transition-colors ${isDarkMode
-                                ? 'bg-gray-700 text-white'
-                                : 'bg-gray-200 text-black'
-                                }`}
-                              min="20"
-                              max="250"
-                            />
-                          </div>
-                        )}
+                        <Text size="2" style={{ fontVariantNumeric: 'tabular-nums' }}>{autoScrollSpeed}</Text>
                       </>
                     )}
-                  </div>
-                </div>
-              </>
-            )}
+                  </Flex>
+
+                  <Separator orientation="vertical" size="1" />
+
+                  {/* Metronome */}
+                  <Flex align="center" gap="2" shrink="0">
+                    <Button
+                      variant={isMetronomeActive ? 'solid' : 'outline'}
+                      color={isMetronomeActive ? 'green' : 'gray'}
+                      size="2"
+                      onClick={() => setIsMetronomeActive(prev => !prev)}
+                    >
+                      {isMetronomeActive ? 'Metro On' : 'Metro Off'}
+                    </Button>
+                    {isMetronomeActive && (
+                      <>
+                        <input
+                          type="number"
+                          value={metronomeBPM}
+                          onChange={(e) => setMetronomeBPM(Math.max(20, Math.min(250, parseInt(e.target.value) || 120)))}
+                          className={`w-16 px-2 py-1 text-sm text-center rounded-md border focus:outline-none transition-colors ${isDarkMode
+                            ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-500'
+                            : 'border-gray-300 bg-white text-black focus:border-black'
+                            }`}
+                          min="20"
+                          max="250"
+                          title="BPM"
+                        />
+                        <Text size="1" color="gray">bpm</Text>
+                        <input
+                          type="number"
+                          value={metronomeMeter}
+                          onChange={(e) => setMetronomeMeter(Math.max(1, Math.min(12, parseInt(e.target.value) || 4)))}
+                          className={`w-12 px-2 py-1 text-sm text-center rounded-md border focus:outline-none transition-colors ${isDarkMode
+                            ? 'border-gray-600 bg-gray-700 text-white focus:border-gray-500'
+                            : 'border-gray-300 bg-white text-black focus:border-black'
+                            }`}
+                          min="1"
+                          max="12"
+                          title="Time signature (beats per measure)"
+                        />
+                        <Text size="1" color="gray">/4</Text>
+                      </>
+                    )}
+                  </Flex>
+                </Flex>
+              )}
+            </div>
 
             {/* Countdown visualizer */}
             {isAutoAdvancing && (
               <div className={`h-2 transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`}>
                 <div
-                  className={`h-full transition-colors ${isDarkMode ? 'bg-gray-500' : 'bg-black'}`}
+                  className={`h-full transition-colors ${isDarkMode ? 'bg-blue-400' : 'bg-black'}`}
                   style={{
                     width: `${countdownProgress}%`
                   }}
@@ -1292,12 +967,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   {currentTab === 'text' && (
                     <div
                       ref={scrollContainerRef}
-                      className="h-full overflow-x-auto overflow-y-hidden"
+                      className={`h-full overflow-x-auto overflow-y-hidden ${isDarkMode ? 'dark-scrollbar' : ''}`}
                       style={{
-                        scrollBehavior: 'smooth',
                         WebkitOverflowScrolling: 'touch',
-                        scrollbarWidth: 'none',
-                        msOverflowStyle: 'none',
                         backgroundColor: isDarkMode ? '#111827' : '#ffffff',
                         padding: '2rem',
                         paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '20vh' : '52vh') : '5rem') : '2rem'
@@ -1337,34 +1009,36 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                               </div>
                             )}
                             {/* External Links */}
-                            <div className="flex gap-2 mt-3">
+                            <div className="flex gap-2 mt-3" style={{ flexWrap: 'wrap' }}>
                               {/* Ultimate Guitar Button */}
                               <a
                                 href={textData.ultimateGuitarUrl || '#'}
                                 target={textData.ultimateGuitarUrl ? '_blank' : '_self'}
                                 rel="noopener noreferrer"
-                                className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm ${textData.ultimateGuitarUrl
-                                  ? (isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md')
-                                  : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed')
+                                className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm whitespace-nowrap ${textData.ultimateGuitarUrl
+                                  ? (isDarkMode ? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md')
+                                  : (isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-500 cursor-not-allowed' : 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed')
                                   }`}
                                 style={{ textDecoration: 'none' }}
                                 onClick={(e) => !textData.ultimateGuitarUrl && e.preventDefault()}
                               >
-                                Ultimate Guitar
+                                <span className="hidden sm:inline">Ultimate Guitar</span>
+                                <span className="sm:hidden">UG</span>
                               </a>
                               {/* Soundslice Button */}
                               <a
                                 href={textData.soundsliceUrl || '#'}
                                 target={textData.soundsliceUrl ? '_blank' : '_self'}
                                 rel="noopener noreferrer"
-                                className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm ${textData.soundsliceUrl
-                                  ? (isDarkMode ? 'bg-blue-600 text-white border-blue-600 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md')
-                                  : (isDarkMode ? 'bg-gray-800 border-gray-700 text-gray-600 cursor-not-allowed' : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed')
+                                className={`no-underline px-2 py-1.5 text-xs font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all shadow-sm whitespace-nowrap ${textData.soundsliceUrl
+                                  ? (isDarkMode ? 'bg-blue-600 text-white border-blue-500 hover:bg-blue-500 hover:shadow-md' : 'bg-black text-white border-black hover:bg-gray-800 hover:shadow-md')
+                                  : (isDarkMode ? 'bg-gray-800 border-gray-600 text-gray-500 cursor-not-allowed' : 'bg-gray-100 border-gray-300 text-gray-400 cursor-not-allowed')
                                   }`}
                                 style={{ textDecoration: 'none' }}
                                 onClick={(e) => !textData.soundsliceUrl && e.preventDefault()}
                               >
-                                Soundslice
+                                <span className="hidden sm:inline">Soundslice</span>
+                                <span className="sm:hidden">SS</span>
                               </a>
                             </div>
                           </div>
@@ -1372,9 +1046,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         <div style={{
                           fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif',
                           fontSize: `${fontSize}px`,
-                          lineHeight: '1.5',
+                          lineHeight: '1.3',
                           margin: 0,
-                          fontWeight: '300',
+                          fontWeight: '600',
                           whiteSpace: 'pre-wrap'
                         }}>
                           {processedText.isHtml ? (

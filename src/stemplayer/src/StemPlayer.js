@@ -1,6 +1,6 @@
 import { html, css } from 'lit';
 import { createRef, ref } from 'lit/directives/ref.js';
-import Controller from '@firstcoders/hls-web-audio/controller.js';
+import GaplessController from './GaplessController.js';
 import Peaks from '@firstcoders/waveform-element/Peaks.js';
 import { ResponsiveLitElement } from './ResponsiveLitElement.js';
 import { FcStemPlayerControls as ControlComponent } from './StemPlayerControls.js';
@@ -179,7 +179,7 @@ export class FcStemPlayer extends ResponsiveLitElement {
   }
 
   firstUpdated() {
-    const controller = new Controller({
+    const controller = new GaplessController({
       ac: this.audioContext,
       destination: this.destination,
       acOpts: { latencyHint: 'playback', sampleRate: 44100 },

@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Theme } from '@radix-ui/themes';
 import HomePage from './components/HomePage';
 import TextMemorisationApp from './components/TextMemorisationApp';
-import { getText } from './utils/storage';
+import { getText, getCachedFolders } from './utils/storage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -36,14 +37,77 @@ class ErrorBoundary extends React.Component {
   }
 }
 
+// URL structure:
+//   /                  -> home, all texts
+//   /folder/<folderId> -> home, folder selected
+//   /song/<songId>     -> practice view for that song
+const parseRoute = (pathname) => {
+  const song = pathname.match(/^\/song\/([^/]+)\/?$/);
+  if (song) return { view: 'practice', songId: decodeURIComponent(song[1]) };
+
+  const folder = pathname.match(/^\/folder\/([^/]+)\/?$/);
+  if (folder) return { view: 'home', folderId: decodeURIComponent(folder[1]) };
+
+  return { view: 'home', folderId: 'all' };
+};
+
 function App() {
-  const [currentView, setCurrentView] = useState('home');
+  const [route, setRoute] = useState(() => parseRoute(window.location.pathname));
   const [currentText, setCurrentText] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [notFoundSongId, setNotFoundSongId] = useState(null);
+  const [isLoading, setIsLoading] = useState(() => {
+    // Skip loading screen if we have cached data
+    return !getCachedFolders();
+  });
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
   });
+
+  const navigate = (path, { replace = false } = {}) => {
+    if (replace) {
+      window.history.replaceState({ appNav: true }, '', path);
+    } else {
+      window.history.pushState({ appNav: true }, '', path);
+    }
+    setRoute(parseRoute(path));
+  };
+
+  // Back/forward navigation
+  useEffect(() => {
+    const onPopState = () => setRoute(parseRoute(window.location.pathname));
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+
+  // Resolve the song for /song/<id> routes (deep links, refresh, back/forward)
+  useEffect(() => {
+    if (route.view !== 'practice') return;
+    if (currentText?.id === route.songId) return;
+
+    let cancelled = false;
+    (async () => {
+      const text = await getText(route.songId);
+      if (cancelled) return;
+      if (text) {
+        setCurrentText(text);
+      } else {
+        setNotFoundSongId(route.songId);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [route, currentText]);
+
+  // Keep the tab title in sync with the current view
+  useEffect(() => {
+    if (route.view === 'practice' && currentText?.id === route.songId && currentText.title) {
+      document.title = `${currentText.title} — The Repetoire`;
+    } else {
+      document.title = 'The Repetoire';
+    }
+  }, [route, currentText]);
 
   useEffect(() => {
     localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
@@ -56,7 +120,8 @@ function App() {
   }, [isDarkMode]);
 
   useEffect(() => {
-    // Set loading to false after initial mount
+    if (!isLoading) return;
+    // Brief loading screen only on first visit (no cached data)
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 800);
@@ -69,12 +134,26 @@ function App() {
 
   const handlePracticeText = (text) => {
     setCurrentText(text);
-    setCurrentView('practice');
+    navigate(`/song/${encodeURIComponent(text.id)}`);
+  };
+
+  const handleSelectFolder = (folderId) => {
+    navigate(folderId === 'all' ? '/' : `/folder/${encodeURIComponent(folderId)}`);
   };
 
   const handleExitPractice = () => {
-    setCurrentView('home');
-    setCurrentText(null);
+    // If we navigated here within the app, going back returns to the exact
+    // home/folder view the user came from; on a deep link, fall back to the
+    // song's folder
+    if (window.history.state?.appNav) {
+      window.history.back();
+    } else {
+      const folderId = currentText?.folderId;
+      navigate(folderId && folderId !== 'default' ? `/folder/${encodeURIComponent(folderId)}` : '/', {
+        replace: true,
+      });
+    }
+    // currentText stays cached so revisiting the same song skips the refetch
   };
 
   // Refresh current text data from database (useful after stems upload)
@@ -88,7 +167,11 @@ function App() {
     }
   };
 
-  if (isLoading) {
+  const isPractice = route.view === 'practice';
+  const practiceReady = isPractice && currentText?.id === route.songId;
+  const songNotFound = isPractice && notFoundSongId === route.songId;
+
+  if (isLoading || (isPractice && !practiceReady && !songNotFound)) {
     return (
       <div className={`min-h-screen flex items-center justify-center transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
         <div className="text-center">
@@ -103,11 +186,35 @@ function App() {
     );
   }
 
+  if (isPractice && songNotFound) {
+    return (
+      <div className={`min-h-screen flex items-center justify-center transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <div className="text-center">
+          <h1 className={`text-2xl font-bold mb-4 transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}>
+            Song not found
+          </h1>
+          <button
+            onClick={() => navigate('/', { replace: true })}
+            className={`px-4 py-2 rounded-lg transition-colors ${isDarkMode
+              ? 'bg-blue-600 text-white hover:bg-blue-500'
+              : 'bg-blue-600 text-white hover:bg-blue-700'
+              }`}
+          >
+            Back to home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
+    <Theme appearance={isDarkMode ? 'dark' : 'light'} accentColor="gray" radius="medium" scaling="100%">
     <ErrorBoundary>
-      {currentView === 'home' ? (
+      {!isPractice ? (
         <HomePage
           onPracticeText={handlePracticeText}
+          selectedFolderId={route.folderId}
+          onSelectFolder={handleSelectFolder}
           isDarkMode={isDarkMode}
           onToggleDarkMode={toggleDarkMode}
         />
@@ -122,6 +229,7 @@ function App() {
         />
       )}
     </ErrorBoundary>
+    </Theme>
   );
 }
 
