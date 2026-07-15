@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { Theme } from '@radix-ui/themes';
 import HomePage from './components/HomePage';
 import TextMemorisationApp from './components/TextMemorisationApp';
-import { getText } from './utils/storage';
+import { getText, getCachedFolders } from './utils/storage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -39,7 +40,10 @@ class ErrorBoundary extends React.Component {
 function App() {
   const [currentView, setCurrentView] = useState('home');
   const [currentText, setCurrentText] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(() => {
+    // Skip loading screen if we have cached data
+    return !getCachedFolders();
+  });
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
     return saved ? JSON.parse(saved) : false;
@@ -56,7 +60,8 @@ function App() {
   }, [isDarkMode]);
 
   useEffect(() => {
-    // Set loading to false after initial mount
+    if (!isLoading) return;
+    // Brief loading screen only on first visit (no cached data)
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 800);
@@ -104,6 +109,7 @@ function App() {
   }
 
   return (
+    <Theme appearance={isDarkMode ? 'dark' : 'light'} accentColor="gray" radius="medium" scaling="100%">
     <ErrorBoundary>
       {currentView === 'home' ? (
         <HomePage
@@ -122,6 +128,7 @@ function App() {
         />
       )}
     </ErrorBoundary>
+    </Theme>
   );
 }
 
