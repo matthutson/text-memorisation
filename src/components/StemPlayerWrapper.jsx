@@ -13,7 +13,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
     const [isABLoopEnabled, setIsABLoopEnabled] = useState(false);
     const [currentTime, setCurrentTime] = useState(0); // Track current playback time
     const playerRef = useRef(null);
-    const loopCheckIntervalRef = useRef(null);
+    const abLoopAppliedRef = useRef(false);
 
     useEffect(() => {
         // Debug: Log textId to verify it's being passed correctly
@@ -84,13 +84,6 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
         const handleTimeUpdate = (event) => {
             const { t } = event.detail;
             setCurrentTime(t);
-
-            // A-B Loop check
-            if (isABLoopEnabled && loopPointA !== null && loopPointB !== null) {
-                if (t >= loopPointB) {
-                    player.currentTime = loopPointA;
-                }
-            }
         };
 
         player.addEventListener('timeupdate', handleTimeUpdate);
@@ -98,6 +91,43 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
         return () => {
             player.removeEventListener('timeupdate', handleTimeUpdate);
         };
+    }, []);
+
+    // Apply the A-B loop to the player.
+    // Rather than polling timeupdate and seeking back to A (which reacts up
+    // to 250ms late and restarts the audio, causing an audible gap), we set
+    // the player's playback region (offset + duration) and enable looping:
+    // the audio then loops gaplessly, sample-accurately in the audio thread.
+    useEffect(() => {
+        const player = playerRef.current;
+        if (!player) return;
+
+        const hasABLoop =
+            isABLoopEnabled &&
+            loopPointA !== null &&
+            loopPointB !== null &&
+            loopPointB > loopPointA;
+
+        if (hasABLoop) {
+            const t = player.state?.currentTime;
+
+            player.offset = loopPointA;
+            player.duration = loopPointB - loopPointA;
+            player.loop = true;
+
+            // If playback is outside the loop region, jump to A so the clock
+            // and the natively-looping audio start the loop in sync
+            if (typeof t === 'number' && (t < loopPointA || t >= loopPointB)) {
+                player.currentTime = loopPointA;
+            }
+
+            abLoopAppliedRef.current = true;
+        } else if (abLoopAppliedRef.current) {
+            player.loop = false;
+            player.offset = 0;
+            player.duration = undefined; // revert to the full track duration
+            abLoopAppliedRef.current = false;
+        }
     }, [isABLoopEnabled, loopPointA, loopPointB]);
 
     const handleFileUpload = async (event) => {
