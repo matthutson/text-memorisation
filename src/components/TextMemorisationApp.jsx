@@ -64,6 +64,41 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const nextNoteTimeRef = useRef(0.0);
   const notesInQueueRef = useRef([]);
 
+  // Auto-size column width to fill the viewport when the song is opened
+  useEffect(() => {
+    if (isEditing || !text) return;
+
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const timer = setTimeout(() => {
+      const h = container.clientHeight;
+      const w = container.clientWidth;
+      if (!h || !w) return;
+
+      // Count approximate display lines
+      const isHtmlContent = text.includes('</p>') || text.includes('<br');
+      const numLines = isHtmlContent
+        ? Math.max(10, (text.match(/<p[^>]*>/gi) || []).length)
+        : Math.max(10, text.split('\n').length);
+
+      // How many lines fit in one column
+      const linesPerCol = Math.max(5, Math.floor((h - 64) / (fontSize * 1.5)));
+
+      // Number of columns needed for the full content
+      const numCols = Math.max(1, Math.ceil(numLines / linesPerCol));
+
+      // Column width so all columns together fill the viewport width
+      const gap = 48; // 3rem column-gap
+      const newWidth = Math.floor((w - 64 - (numCols - 1) * gap) / numCols);
+      setColumnWidth(Math.max(160, Math.min(500, newWidth)));
+    }, 150);
+
+    return () => clearTimeout(timer);
+  // Intentionally run only on mount (one-time auto-size when song opens)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Helper function to detect if a line is a chord line
   const isChordLine = (line) => {
     // Empty lines are not chord lines
@@ -116,8 +151,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         });
 
         // 1. Count total text characters (excluding chord lines)
-        let totalChars = 0;
-        const countWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+        const chordFilter = {
           acceptNode: (node) => {
             const parent = node.parentElement;
             if (parent && parent.closest('[data-chord-line="true"]')) {
@@ -125,9 +159,23 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
             }
             return NodeFilter.FILTER_ACCEPT;
           }
-        }, false);
+        };
+
+        let totalChars = 0;
+        const countWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, chordFilter, false);
         while (countWalker.nextNode()) {
           totalChars += countWalker.currentNode.textContent.length;
+        }
+
+        // If all text was on chord lines, clear markers so the slider still works
+        if (totalChars === 0) {
+          doc.body.querySelectorAll('[data-chord-line="true"]').forEach(el => {
+            el.removeAttribute('data-chord-line');
+          });
+          const allWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, null, false);
+          while (allWalker.nextNode()) {
+            totalChars += allWalker.currentNode.textContent.length;
+          }
         }
 
         // 2. Calculate visible characters
@@ -142,7 +190,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
           }
         }
 
-        // 4. Apply hiding logic (skip chord lines)
+        // 4. Apply hiding logic (skip chord lines, unless all text is chords)
         let currentGlobalPos = 0;
         const processWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
           acceptNode: (node) => {
