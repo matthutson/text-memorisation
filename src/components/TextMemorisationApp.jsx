@@ -27,6 +27,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [visibility, setVisibility] = useState(100);
   const [isEditing, setIsEditing] = useState(!initialText);
   const [fontSize, setFontSize] = useState(() => window.innerWidth < 768 ? 10 : 12);
+  const [anchorWords, setAnchorWords] = useState(2); // Words kept visible at the start of every line
   const [columnWidth, setColumnWidth] = useState(() => window.innerWidth < 768 ? 100 : 160);
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(5); // Speed from 1-10
@@ -93,6 +94,37 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     return /^\[.*\]$/.test(line.trim());
   };
 
+  // Per-line tracker: reports whether a character belongs to the first `wordCount`
+  // words of that line. Those words stay visible at every reveal level so each
+  // line keeps a starting cue.
+  const createAnchorTracker = (wordCount) => {
+    let wordsSeen = 0;
+    let inWord = false;
+    return (char) => {
+      if (/\s/.test(char)) {
+        inWord = false;
+        return wordsSeen < wordCount;
+      }
+      if (!inWord) {
+        inWord = true;
+        wordsSeen += 1;
+      }
+      return wordsSeen <= wordCount;
+    };
+  };
+
+  // Spread the visible characters evenly across all hideable ones
+  const buildVisibleSet = (total, percentage) => {
+    const visible = new Set();
+    const count = Math.ceil(total * (percentage / 100));
+    if (total <= 0 || count <= 0) return visible;
+    const step = total / count;
+    for (let i = 0; i < count; i++) {
+      visible.add(Math.floor(i * step));
+    }
+    return visible;
+  };
+
   const processedText = useMemo(() => {
     if (!text) return [];
 
@@ -104,73 +136,84 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         const parser = new DOMParser();
         const doc = parser.parseFromString(text, 'text/html');
 
-        // Detect and mark chord lines in HTML content
-        const paragraphs = doc.body.querySelectorAll('p, div');
-        paragraphs.forEach(p => {
-          const textContent = p.textContent.trim();
-          if (textContent && isChordLine(textContent)) {
-            p.setAttribute('data-chord-line', 'true');
-            p.style.color = '#3b82f6';
-            p.style.fontWeight = '400';
+        // Detect and mark chord lines and section markers in HTML content
+        const blocks = doc.body.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6');
+        blocks.forEach(block => {
+          const textContent = block.textContent.trim();
+          if (!textContent) return;
+          if (isChordLine(textContent)) {
+            block.setAttribute('data-chord-line', 'true');
+            block.style.color = '#3b82f6';
+            block.style.fontWeight = '400';
+          } else if (isSectionMarker(textContent)) {
+            block.setAttribute('data-always-visible', 'true');
           }
         });
 
-        // 1. Count total text characters (excluding chord lines)
-        let totalChars = 0;
-        const countWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
+        // Text nodes inside chord lines and section markers are never hidden
+        const makeWalker = () => document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
           acceptNode: (node) => {
             const parent = node.parentElement;
-            if (parent && parent.closest('[data-chord-line="true"]')) {
+            if (parent && parent.closest('[data-chord-line="true"], [data-always-visible="true"]')) {
               return NodeFilter.FILTER_REJECT;
             }
             return NodeFilter.FILTER_ACCEPT;
           }
         }, false);
+
+        // A "line" is the nearest block element, so the anchor words reset per line
+        const lineOf = (node) => node.parentElement?.closest('p, div, li, h1, h2, h3, h4, h5, h6') || doc.body;
+
+        // 1. Count the characters eligible to be hidden (excludes whitespace and anchor words)
+        let hideableCount = 0;
+        let currentLine = null;
+        let isAnchor = createAnchorTracker(anchorWords);
+        const countWalker = makeWalker();
         while (countWalker.nextNode()) {
-          totalChars += countWalker.currentNode.textContent.length;
-        }
-
-        // 2. Calculate visible characters
-        const charsToShow = Math.ceil(totalChars * (visibility / 100));
-
-        // 3. Determine visible positions
-        const visiblePositions = new Set();
-        if (charsToShow > 0 && totalChars > 0) {
-          const step = totalChars / charsToShow;
-          for (let i = 0; i < charsToShow; i++) {
-            visiblePositions.add(Math.floor(i * step));
+          const node = countWalker.currentNode;
+          const line = lineOf(node);
+          if (line !== currentLine) {
+            currentLine = line;
+            isAnchor = createAnchorTracker(anchorWords);
+          }
+          const content = node.textContent;
+          for (let i = 0; i < content.length; i++) {
+            const char = content[i];
+            const anchored = isAnchor(char);
+            if (!/\s/.test(char) && !anchored) hideableCount++;
           }
         }
 
-        // 4. Apply hiding logic (skip chord lines)
-        let currentGlobalPos = 0;
-        const processWalker = document.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT, {
-          acceptNode: (node) => {
-            const parent = node.parentElement;
-            if (parent && parent.closest('[data-chord-line="true"]')) {
-              return NodeFilter.FILTER_REJECT;
-            }
-            return NodeFilter.FILTER_ACCEPT;
-          }
-        }, false);
+        // 2. Pick which of them stay visible
+        const visiblePositions = buildVisibleSet(hideableCount, visibility);
 
+        // 3. Apply hiding logic
+        let hideableIndex = 0;
+        currentLine = null;
+        isAnchor = createAnchorTracker(anchorWords);
+        const processWalker = makeWalker();
         while (processWalker.nextNode()) {
           const node = processWalker.currentNode;
+          const line = lineOf(node);
+          if (line !== currentLine) {
+            currentLine = line;
+            isAnchor = createAnchorTracker(anchorWords);
+          }
           const content = node.textContent;
           let newContent = '';
 
           for (let i = 0; i < content.length; i++) {
-            if (content[i].match(/\s/)) {
-              newContent += content[i];
-            } else if (visiblePositions.has(currentGlobalPos + i)) {
-              newContent += content[i];
+            const char = content[i];
+            const anchored = isAnchor(char);
+            if (/\s/.test(char) || anchored) {
+              newContent += char;
             } else {
-              newContent += '·';
+              newContent += visiblePositions.has(hideableIndex) ? char : '·';
+              hideableIndex++;
             }
           }
 
           node.textContent = newContent;
-          currentGlobalPos += content.length;
         }
 
         return { isHtml: true, content: doc.body.innerHTML };
@@ -184,61 +227,47 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     // Split text into lines
     const lines = text.split('\n');
 
-    // Identify which lines are chord lines or section markers
-    const lineIsChord = lines.map(line => isChordLine(line));
-    const lineIsSection = lines.map(line => isSectionMarker(line));
+    // Classify every character: chord lines, section markers, whitespace and the
+    // first `anchorWords` words of each lyric line are always visible
+    const lineMeta = lines.map(line => {
+      if (isChordLine(line)) return { type: 'chord' };
+      if (isSectionMarker(line)) return { type: 'section' };
 
-    // Build character position map (excluding chord lines and sections)
-    const charPositions = [];
-    let currentPos = 0;
-
-    for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
-      const line = lines[lineIdx];
-
-      if (lineIsChord[lineIdx] || lineIsSection[lineIdx]) {
-        // Skip chord lines and section markers when building character positions
-        currentPos += line.length + 1; // +1 for newline
-      } else {
-        // Add non-whitespace character positions from lyric lines
-        for (let i = 0; i < line.length; i++) {
-          const char = line[i];
-          if (char !== ' ' && char !== '\t') {
-            charPositions.push(currentPos + i);
-          }
-        }
-        currentPos += line.length + 1; // +1 for newline
+      const isAnchor = createAnchorTracker(anchorWords);
+      const hideable = [];
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        const anchored = isAnchor(char);
+        hideable.push(char !== ' ' && char !== '\t' && !anchored);
       }
-    }
+      return { type: 'lyric', hideable };
+    });
 
-    // Calculate visible characters
-    const charsToShow = Math.ceil(charPositions.length * (visibility / 100));
+    const hideableCount = lineMeta.reduce(
+      (sum, meta) => meta.type === 'lyric' ? sum + meta.hideable.filter(Boolean).length : sum,
+      0
+    );
 
-    // Distribute visible characters uniformly
-    const visiblePositions = new Set();
-    if (charsToShow > 0 && charPositions.length > 0) {
-      const step = charPositions.length / charsToShow;
-      for (let i = 0; i < charsToShow; i++) {
-        const index = Math.floor(i * step);
-        visiblePositions.add(charPositions[index]);
-      }
-    }
+    // Distribute visible characters uniformly across the hideable ones
+    const visiblePositions = buildVisibleSet(hideableCount, visibility);
 
     // Build the output as React elements
     const result = [];
-    currentPos = 0;
+    let hideableIndex = 0;
 
     for (let lineIdx = 0; lineIdx < lines.length; lineIdx++) {
       const line = lines[lineIdx];
+      const meta = lineMeta[lineIdx];
       let lineContent = '';
 
-      if (lineIsChord[lineIdx]) {
+      if (meta.type === 'chord') {
         // Keep chord lines fully visible with special styling
         result.push(
           <div key={lineIdx} style={{ color: '#3b82f6', fontWeight: '400', lineHeight: '1.1', marginBottom: 0, paddingBottom: 0 }}>
             {line || ' '}
           </div>
         );
-      } else if (lineIsSection[lineIdx]) {
+      } else if (meta.type === 'section') {
         // Style section markers
         result.push(
           <div key={lineIdx} style={{ fontWeight: '500', marginTop: '1em', marginBottom: '0.5em' }}>
@@ -249,22 +278,19 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         // Process lyric lines with hiding
         for (let i = 0; i < line.length; i++) {
           const char = line[i];
-          if (char === ' ' || char === '\t') {
-            lineContent += char;
-          } else if (visiblePositions.has(currentPos + i)) {
+          if (!meta.hideable[i]) {
             lineContent += char;
           } else {
-            lineContent += '·';
+            lineContent += visiblePositions.has(hideableIndex) ? char : '·';
+            hideableIndex++;
           }
         }
         result.push(<div key={lineIdx}>{lineContent || ' '}</div>);
       }
-
-      currentPos += line.length + 1;
     }
 
     return { isHtml: false, content: result };
-  }, [text, visibility]);
+  }, [text, visibility, anchorWords]);
 
   const handleStartPractising = () => {
     if (text.trim()) {
@@ -809,6 +835,22 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     </IconButton>
                     <Text size="2" style={{ width: 24, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{fontSize}</Text>
                     <IconButton variant="outline" size="3" onClick={() => setFontSize(Math.min(24, fontSize + 2))}>
+                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
+                    </IconButton>
+                  </Flex>
+
+                  <Separator orientation="vertical" size="1" />
+
+                  {/* Line-start cue — words always kept visible at the start of each line */}
+                  <Flex align="center" gap="2" shrink="0">
+                    <Tooltip content="Words always shown at the start of every line">
+                      <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cue</Text>
+                    </Tooltip>
+                    <IconButton variant="outline" size="3" onClick={() => setAnchorWords(Math.max(0, anchorWords - 1))}>
+                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
+                    </IconButton>
+                    <Text size="2" style={{ width: 24, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{anchorWords}</Text>
+                    <IconButton variant="outline" size="3" onClick={() => setAnchorWords(Math.min(5, anchorWords + 1))}>
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
                     </IconButton>
                   </Flex>
