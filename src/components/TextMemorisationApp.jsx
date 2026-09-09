@@ -38,6 +38,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   // The transport bar owns playback; the mixer needs the same engine
   const handleEngineReady = useCallback((instance) => setEngine(instance), []);
   const [columnWidth, setColumnWidth] = useState(() => window.innerWidth < 768 ? 100 : 160);
+  const [autoFit, setAutoFit] = useState(true); // size the text to fill the window
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(5); // Speed from 1-10
   const [countdownProgress, setCountdownProgress] = useState(100);
@@ -50,6 +51,11 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
   const scrollContainerRef = useRef(null);
   const lastJumpRef = useRef(0);
+  const headerRef = useRef(null);
+  const measureRef = useRef(null);
+  const columnHostRef = useRef(null);
+  const textHostRef = useRef(null);
+  const fitDataRef = useRef({ lineTexts: [], groupSizes: [] });
   const osmdContainerRef = useRef(null);
   const osmdInstanceRef = useRef(null);
   const audioPlayerRef = useRef(null);
@@ -218,7 +224,40 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
           node.textContent = newContent;
         }
 
-        return { isHtml: true, content: doc.body.innerHTML, lineTexts };
+        // A chord line and the words under it are one unit: wrap them so a
+        // column break can never land between them. A section heading takes
+        // the line that follows it along too, so it is never left dangling.
+        const children = Array.from(doc.body.children);
+        const isChordBlock = (block) => block?.getAttribute('data-chord-line') === 'true';
+        const isSectionBlock = (block) => block?.hasAttribute('data-always-visible');
+
+        const groupSizes = [];
+        const wrapped = [];
+        let index = 0;
+        while (index < children.length) {
+          const block = children[index];
+          let size = 1;
+          if (isSectionBlock(block)) {
+            if (isChordBlock(children[index + 1])) size = 3;
+            else if (children[index + 1]) size = 2;
+          } else if (isChordBlock(block) && children[index + 1]) {
+            size = 2;
+          }
+
+          const group = doc.createElement('div');
+          group.setAttribute('data-lyric-group', '');
+          group.style.breakInside = 'avoid';
+          group.style.pageBreakInside = 'avoid';
+          for (let taken = 0; taken < size && index < children.length; taken++) {
+            group.appendChild(children[index]);
+            index += 1;
+          }
+          wrapped.push(group);
+          groupSizes.push(size);
+        }
+        wrapped.forEach(group => doc.body.appendChild(group));
+
+        return { isHtml: true, content: doc.body.innerHTML, lineTexts, groupSizes };
       } catch (e) {
         console.error('Error parsing HTML:', e);
         // Fallback to plain text processing if parsing fails
@@ -293,7 +332,29 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       }
     }
 
-    return { isHtml: false, content: result, lineTexts };
+    // Group the rendered lines the same way, so nothing splits mid-pair
+    const groupSizes = [];
+    const grouped = [];
+    let cursor = 0;
+    while (cursor < result.length) {
+      const type = lineMeta[cursor]?.type;
+      let size = 1;
+      if (type === 'section') {
+        if (lineMeta[cursor + 1]?.type === 'chord') size = 3;
+        else if (result[cursor + 1]) size = 2;
+      } else if (type === 'chord' && result[cursor + 1]) {
+        size = 2;
+      }
+      grouped.push(
+        <div key={`group-${cursor}`} data-lyric-group="" style={{ breakInside: 'avoid', pageBreakInside: 'avoid' }}>
+          {result.slice(cursor, cursor + size)}
+        </div>
+      );
+      groupSizes.push(size);
+      cursor += size;
+    }
+
+    return { isHtml: false, content: grouped, lineTexts, groupSizes };
   }, [text, visibility, anchorWords]);
 
   // ---- Bookmarks: a moment in the audio tied to a line of the lyrics ------
@@ -393,6 +454,97 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       container.scrollTo({ left: Math.max(0, target), behavior: isJump ? 'auto' : 'smooth' });
     }
   }, [activeLine, isFollowing, jumpToken, processedText]);
+
+  // ---- Fitting the song to the window ------------------------------------
+  //
+  // Columns are only useful if a line never wraps and a chord never parts from
+  // its words, so the column has to be at least as wide as the longest line.
+  // Given that, the largest font that still fits every column on screen is
+  // found by measuring rather than guessing.
+
+  // Measured from the words themselves, never the hidden version, so moving
+  // the reveal slider cannot change the layout
+  useEffect(() => {
+    fitDataRef.current = {
+      lineTexts: processedText.lineTexts || [],
+      groupSizes: processedText.groupSizes || []
+    };
+  }, [processedText]);
+
+  const longestLineWidth = useCallback((size) => {
+    const canvas = measureRef.current || (measureRef.current = document.createElement('canvas'));
+    const context = canvas.getContext('2d');
+    context.font = `600 ${size}px -apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif`;
+    let widest = 0;
+    for (const line of fitDataRef.current.lineTexts) {
+      const width = context.measureText(line || '').width;
+      if (width > widest) widest = width;
+    }
+    return widest;
+  }, []);
+
+  /**
+   * Try a size against the real layout rather than a model of it: set the font
+   * and column width, read back whether the columns still overflow, and binary
+   * search for the largest size that does not.
+   */
+  const fitToWindow = useCallback(() => {
+    const container = scrollContainerRef.current;
+    const columnHost = columnHostRef.current;
+    const textHost = textHostRef.current;
+    if (!container || !columnHost || !textHost || !fitDataRef.current.lineTexts.length) return;
+
+    const previousFont = textHost.style.fontSize;
+    const previousWidth = columnHost.style.columnWidth;
+
+    // The column has to hold the longest line, or lines wrap and the chords
+    // stop lining up with the words
+    const tryTheSize = (size) => {
+      const width = Math.ceil(longestLineWidth(size)) + 4;
+      textHost.style.fontSize = `${size}px`;
+      columnHost.style.columnWidth = `${width}px`;
+      const overflow = container.scrollWidth - container.clientWidth; // forces layout
+      return { fits: overflow <= 1, width };
+    };
+
+    let best = null;
+    let low = 8;
+    let high = 40;
+    while (low <= high) {
+      const size = Math.floor((low + high) / 2);
+      const attempt = tryTheSize(size);
+      if (attempt.fits) {
+        best = { size, width: attempt.width };
+        low = size + 1;
+      } else {
+        high = size - 1;
+      }
+    }
+
+    textHost.style.fontSize = previousFont;
+    columnHost.style.columnWidth = previousWidth;
+
+    // Songs too long for the window keep the smallest readable size and scroll
+    const chosen = best || { size: 8, width: Math.ceil(longestLineWidth(8)) + 4 };
+    setFontSize(chosen.size);
+    setColumnWidth(chosen.width);
+  }, [longestLineWidth]);
+
+  useEffect(() => {
+    // Keyed on the song, not on how much of it is hidden
+    if (!autoFit || isEditing || currentTab !== 'text' || !text) return undefined;
+
+    let frame = requestAnimationFrame(fitToWindow);
+    const onResize = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(fitToWindow);
+    };
+    window.addEventListener('resize', onResize);
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('resize', onResize);
+    };
+  }, [autoFit, isEditing, currentTab, text, fitToWindow]);
 
   const handleStartPractising = () => {
     if (text.trim()) {
@@ -868,14 +1020,28 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               {/* Collapsible on mobile (via chevron toggle), always visible on md+ */}
               {currentTab === 'text' && (
                 <Flex align="center" gap="3" wrap="wrap" px="3" py="2" className={`${isControlsExpanded ? '' : 'hidden'} md:!flex`} style={{ borderTop: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb' }}>
+                  {/* Fit the song to the window */}
+                  <Tooltip content="Size the text so the whole song fits the window without wrapping">
+                    <Button
+                      variant={autoFit ? 'solid' : 'outline'}
+                      color={autoFit ? 'blue' : 'gray'}
+                      size="2"
+                      onClick={() => { setAutoFit(true); fitToWindow(); }}
+                    >
+                      Fit
+                    </Button>
+                  </Tooltip>
+
+                  <Separator orientation="vertical" size="1" />
+
                   {/* Font Size */}
                   <Flex align="center" gap="2" shrink="0">
                     <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Font</Text>
-                    <IconButton variant="outline" size="3" onClick={() => setFontSize(Math.max(10, fontSize - 2))}>
+                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setFontSize(Math.max(8, fontSize - 2)); }}>
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
                     </IconButton>
                     <Text size="2" style={{ width: 24, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{fontSize}</Text>
-                    <IconButton variant="outline" size="3" onClick={() => setFontSize(Math.min(24, fontSize + 2))}>
+                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setFontSize(Math.min(40, fontSize + 2)); }}>
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
                     </IconButton>
                   </Flex>
@@ -901,11 +1067,11 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   {/* Column Width */}
                   <Flex align="center" gap="2" shrink="0">
                     <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Width</Text>
-                    <IconButton variant="outline" size="3" onClick={() => setColumnWidth(Math.max(100, columnWidth - 20))}>
+                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setColumnWidth(Math.max(80, columnWidth - 20)); }}>
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
                     </IconButton>
                     <Text size="2" style={{ width: 32, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{columnWidth}</Text>
-                    <IconButton variant="outline" size="3" onClick={() => setColumnWidth(Math.min(320, columnWidth + 20))}>
+                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setColumnWidth(Math.min(900, columnWidth + 20)); }}>
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
                     </IconButton>
                   </Flex>
@@ -1049,6 +1215,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         cursor: isMarkMode ? 'crosshair' : 'default'
                       }}>
                       <div
+                        ref={columnHostRef}
                         className={`transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}
                         style={{
                           columnWidth: `${columnWidth}px`,
@@ -1062,10 +1229,11 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         }}>
                         {/* Song info header */}
                         {textData && (textData.title || textData.artist) && (
-                          <div style={{
+                          <div ref={headerRef} style={{
                             marginBottom: '2rem',
                             paddingBottom: '1rem',
-                            borderBottom: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb'
+                            borderBottom: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+                            breakInside: 'avoid'
                           }}>
                             {textData.title && (
                               <div style={{ fontSize: '1.5em', fontWeight: '500', marginBottom: '0.25rem' }}>
@@ -1117,7 +1285,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                             </div>
                           </div>
                         )}
-                        <div style={{
+                        <div ref={textHostRef} style={{
                           fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif',
                           fontSize: `${fontSize}px`,
                           lineHeight: '1.3',
