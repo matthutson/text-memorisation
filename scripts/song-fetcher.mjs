@@ -16,7 +16,7 @@
 //
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { access, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -24,6 +24,8 @@ const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
 const APP_URL = (process.env.APP_URL || 'https://text-memorisation.vercel.app').replace(/\/$/, '');
 const POLL_SECONDS = Number(process.env.POLL_SECONDS || 20);
+const COOKIES = process.env.YTDLP_COOKIES || '';
+const EXTRA_ARGS = (process.env.YTDLP_ARGS || '').split(' ').filter(Boolean);
 const runOnce = process.argv.includes('--once');
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
@@ -72,12 +74,25 @@ const finish = async (job, status, message = '') => {
     .eq('id', job.id);
 };
 
+// A cookies file is only used when one has actually been provided; most
+// videos need nothing from a home connection
+const cookieArgs = async () => {
+  if (!COOKIES) return [];
+  try {
+    await access(COOKIES);
+    return ['--cookies', COOKIES];
+  } catch {
+    return [];
+  }
+};
+
 /** Download the audio and return { path, title } */
 const download = async (job, directory) => {
   await setStage(job, 'Downloading from YouTube');
-  const title = await run('yt-dlp', ['--no-playlist', '--print', '%(title)s', '--skip-download', job.source_url], { capture: true });
+  const common = ['--no-playlist', ...await cookieArgs(), ...EXTRA_ARGS];
+  const title = await run('yt-dlp', [...common, '--print', '%(title)s', '--skip-download', job.source_url], { capture: true });
   await run('yt-dlp', [
-    '--no-playlist',
+    ...common,
     '-x', '--audio-format', 'mp3', '--audio-quality', '0',
     '-o', join(directory, 'audio.%(ext)s'),
     job.source_url

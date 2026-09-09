@@ -94,6 +94,9 @@ your own machine and everything else stays in the app.
 
 ### One-time setup
 
+Docker Desktop is enough on its own. Without it, install the two tools the
+fetcher shells out to:
+
 ```bash
 brew install yt-dlp ffmpeg
 ```
@@ -108,15 +111,35 @@ VITE_SUPABASE_ANON_KEY=<anon key>
 
 ### Running it
 
+Either in Docker, which needs nothing installed on the host but Docker Desktop:
+
+```bash
+cp .env.example .env            # then fill in the two Supabase values
+docker compose up -d --build    # starts with Docker from then on
+docker compose logs -f fetcher  # watch it work
+```
+
+Or directly, if you would rather install the tools yourself:
+
 ```bash
 npm run fetch-songs             # watch for new jobs
 npm run fetch-songs -- --once   # take one job and stop
 ```
+
+Docker Desktop routes the container's traffic out through your home
+connection, so YouTube treats it as you rather than as a datacenter. The
+container refreshes yt-dlp each time it starts, because YouTube changes often
+enough that a pinned copy goes stale within weeks.
+
+If a video asks you to sign in, export your YouTube cookies to
+`docker/cookies/cookies.txt` and the fetcher will use them. Running outside
+Docker, set `YTDLP_COOKIES` to that file instead.
 
 Leave it running and songs fill themselves in: it downloads the audio, sends it
 to the app's own split endpoints (so the LALAL.AI key stays on the server) and
 attaches the finished stems. Progress shows in the Tracks panel of the song. If
 your machine is off, the job simply waits until the fetcher is next running.
 
-To have it start at login, point a launchd agent at `npm run fetch-songs` in
-this directory.
+In Docker the `restart: unless-stopped` policy brings it back whenever Docker
+Desktop starts, so there is nothing to remember. Outside Docker, point a
+launchd agent at `npm run fetch-songs` in this directory.

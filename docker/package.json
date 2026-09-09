@@ -1,0 +1,8 @@
+{
+  "name": "repetoire-fetcher",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.83.0"
+  }
+}

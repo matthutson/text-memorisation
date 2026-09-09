@@ -1,0 +1,15 @@
+services:
+  fetcher:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    # Your Supabase values, the same two the app uses
+    env_file: .env
+    environment:
+      APP_URL: ${APP_URL:-https://text-memorisation.vercel.app}
+      POLL_SECONDS: ${POLL_SECONDS:-20}
+      # Drop a cookies.txt into docker/cookies to use it for awkward videos
+      YTDLP_COOKIES: /cookies/cookies.txt
+    volumes:
+      - ./docker/cookies:/cookies:ro
+    restart: unless-stopped
