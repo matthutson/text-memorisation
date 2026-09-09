@@ -87,22 +87,18 @@ copied back into the bucket, since LALAL.AI's own result URLs expire.
 Paste a YouTube URL into a song and tick "Fetch this track and split it into
 vocals and backing". The song is saved straight away and the work is queued.
 
-The download cannot run on Vercel. YouTube refuses datacenter addresses: yt-dlp
-from a cloud host gets `429 Too Many Requests` and then "Sign in to confirm
-you're not a bot". From a home connection it just works, so the fetcher runs on
-your own machine and everything else stays in the app.
+The work happens on your own machine, for two reasons. YouTube refuses
+datacenter addresses: a download from a cloud host gets `429 Too Many
+Requests` and then "Sign in to confirm you're not a bot". And the separation
+runs in [StemDeck](https://github.com/stemdeckapp/stemdeck), a local service on
+127.0.0.1 that a deployed function could never reach. Splitting is therefore
+local, free, and needs no licence key.
 
 ### One-time setup
 
-Docker Desktop is enough on its own. Without it, install the two tools the
-fetcher shells out to:
-
-```bash
-brew install yt-dlp ffmpeg
-```
-
-Run the backing track jobs section of `supabase-schema.sql`, then create a
-`.env` in the repo with the same two values the app uses:
+Install StemDeck and run the backing track jobs section of
+`supabase-schema.sql`, then create a `.env` in the repo with the same two
+values the app uses:
 
 ```
 VITE_SUPABASE_URL=https://<project>.supabase.co
@@ -111,35 +107,23 @@ VITE_SUPABASE_ANON_KEY=<anon key>
 
 ### Running it
 
-Either in Docker, which needs nothing installed on the host but Docker Desktop:
-
-```bash
-cp .env.example .env            # then fill in the two Supabase values
-docker compose up -d --build    # starts with Docker from then on
-docker compose logs -f fetcher  # watch it work
-```
-
-Or directly, if you would rather install the tools yourself:
+StemDeck has to be up first, then:
 
 ```bash
 npm run fetch-songs             # watch for new jobs
 npm run fetch-songs -- --once   # take one job and stop
 ```
 
-Docker Desktop routes the container's traffic out through your home
-connection, so YouTube treats it as you rather than as a datacenter. The
-container refreshes yt-dlp each time it starts, because YouTube changes often
-enough that a pinned copy goes stale within weeks.
+The fetcher checks StemDeck is reachable before it starts, so a missing
+service fails immediately rather than halfway through a song. Progress shows
+in the Tracks panel of the song, and Demucs takes a minute or so per song.
 
-If a video asks you to sign in, export your YouTube cookies to
-`docker/cookies/cookies.txt` and the fetcher will use them. Running outside
-Docker, set `YTDLP_COOKIES` to that file instead.
+| Variable | Default | What it does |
+| --- | --- | --- |
+| `STEMDECK_URL` | `http://127.0.0.1:8000` | Where StemDeck is listening |
+| `POLL_SECONDS` | `20` | How often to look for new jobs |
+| `STEMDECK_CLEANUP` | off | Set to `1` to delete each StemDeck job once its stems are safely in Supabase |
 
-Leave it running and songs fill themselves in: it downloads the audio, sends it
-to the app's own split endpoints (so the LALAL.AI key stays on the server) and
-attaches the finished stems. Progress shows in the Tracks panel of the song. If
-your machine is off, the job simply waits until the fetcher is next running.
-
-In Docker the `restart: unless-stopped` policy brings it back whenever Docker
-Desktop starts, so there is nothing to remember. Outside Docker, point a
-launchd agent at `npm run fetch-songs` in this directory.
+To have it start at login, point launchd agents at StemDeck and at
+`npm run fetch-songs` in this directory. Both need to be running: the fetcher
+is inert without StemDeck.
