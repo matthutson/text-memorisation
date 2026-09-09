@@ -2,30 +2,31 @@
 //
 // Turns a queued YouTube link into backing stems on the song.
 //
-// This runs on your own machine rather than on Vercel because YouTube refuses
-// datacenter addresses: yt-dlp from a cloud host answers "Sign in to confirm
-// you're not a bot". From a home connection it just works.
+// This runs on your own machine rather than on Vercel for two reasons. YouTube
+// refuses datacenter addresses: yt-dlp from a cloud host answers "Sign in to
+// confirm you're not a bot". And the splitting is done by StemDeck, which is a
+// local service on 127.0.0.1 that a deployed function could never reach.
 //
-// It downloads the audio, hands it to the app's own /api/lalal endpoints (so
-// the licence key stays on the server) and writes the finished stems back on
-// to the song. Leave it running and songs fill themselves in.
+// StemDeck takes the YouTube URL itself, downloads it, and separates it with
+// Demucs on this machine. Asking it for the vocals alone also gets us its
+// "original" complement track, which is every other stem summed: the backing.
+// Those two are copied into Supabase storage and attached to the song, which
+// is the same pair the app used to get back from LALAL.AI.
 //
-//   yt-dlp and ffmpeg must be on PATH:  brew install yt-dlp ffmpeg
+//   StemDeck must be running:  cd ~/Developer/stemdeck && ./run.sh start
 //   npm run fetch-songs            keep watching for new jobs
 //   npm run fetch-songs -- --once  take one job and stop
 //
 import { createClient } from '@supabase/supabase-js';
-import { spawn } from 'node:child_process';
-import { access, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY;
-const APP_URL = (process.env.APP_URL || 'https://text-memorisation.vercel.app').replace(/\/$/, '');
+const STEMDECK_URL = (process.env.STEMDECK_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 const POLL_SECONDS = Number(process.env.POLL_SECONDS || 20);
-const COOKIES = process.env.YTDLP_COOKIES || '';
-const EXTRA_ARGS = (process.env.YTDLP_ARGS || '').split(' ').filter(Boolean);
+// StemDeck keeps every job in its own library. Deleting ours once the stems are
+// safely in Supabase keeps the disk in check, but it is destructive and off by
+// default: set STEMDECK_CLEANUP=1 to turn it on.
+const CLEANUP = process.env.STEMDECK_CLEANUP === '1';
 const runOnce = process.argv.includes('--once');
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
@@ -37,30 +38,18 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const safeName = (name) => name.replace(/[[\]]/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_');
 
-const run = (command, args, { capture = false } = {}) => new Promise((resolve, reject) => {
-  const child = spawn(command, args, { stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit' });
-  let out = '';
-  let err = '';
-  if (capture) {
-    child.stdout.on('data', chunk => { out += chunk; });
-    child.stderr.on('data', chunk => { err += chunk; });
+const stemdeck = async (path, options = {}) => {
+  let response;
+  try {
+    response = await fetch(`${STEMDECK_URL}${path}`, options);
+  } catch (error) {
+    throw new Error(`StemDeck is not reachable at ${STEMDECK_URL} (${error.message}). Start it with ./run.sh start`);
   }
-  child.on('error', reject);
-  child.on('close', code => {
-    if (code === 0) resolve(out.trim());
-    else reject(new Error(`${command} exited with ${code}${err ? `: ${err.trim().split('\n').slice(-3).join(' ')}` : ''}`));
-  });
-});
-
-const api = async (endpoint, body) => {
-  const response = await fetch(`${APP_URL}/api/lalal/${endpoint}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body || {})
-  });
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(data.error || data.detail || `${endpoint} failed (${response.status})`);
-  return data;
+  if (!response.ok) {
+    const detail = await response.json().catch(() => ({}));
+    throw new Error(detail.detail || `${path} failed (${response.status})`);
+  }
+  return response;
 };
 
 const setStage = async (job, stage) => {
@@ -74,83 +63,68 @@ const finish = async (job, status, message = '') => {
     .eq('id', job.id);
 };
 
-// A cookies file is only used when one has actually been provided; most
-// videos need nothing from a home connection
-const cookieArgs = async () => {
-  if (!COOKIES) return [];
-  try {
-    await access(COOKIES);
-    return ['--cookies', COOKIES];
-  } catch {
-    return [];
+/** Hand the link to StemDeck and wait for the separation. Returns its job state. */
+const separate = async (job) => {
+  await setStage(job, 'Sending to StemDeck');
+  const created = await stemdeck('/api/jobs', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    // Selecting the vocals alone is what makes StemDeck build the "original"
+    // complement track, which is the backing we want. Asking for all six would
+    // give us no complement at all.
+    body: JSON.stringify({ url: job.source_url, stems: ['vocals'] })
+  });
+  const { job_id: stemdeckId } = await created.json();
+
+  let last = '';
+  for (;;) {
+    await wait(5000);
+    const state = await (await stemdeck(`/api/jobs/${stemdeckId}`)).json();
+
+    if (state.status === 'error') {
+      throw new Error(state.error_detail || state.error || 'StemDeck could not separate this song');
+    }
+    if (state.status === 'cancelled') throw new Error('The StemDeck job was cancelled');
+    if (state.status === 'unavailable') throw new Error('StemDeck finished but its stem files are missing');
+    if (state.status === 'done') return { ...state, stemdeckId };
+
+    // Demucs on a CPU takes minutes, so the stage is worth showing on the song
+    const stage = `${state.stage || state.status}${state.progress ? ` (${Math.round(state.progress)}%)` : ''}`;
+    if (stage !== last) {
+      last = stage;
+      await setStage(job, stage);
+    }
   }
 };
 
-/** Download the audio and return { path, title } */
-const download = async (job, directory) => {
-  await setStage(job, 'Downloading from YouTube');
-  const common = ['--no-playlist', ...await cookieArgs(), ...EXTRA_ARGS];
-  const title = await run('yt-dlp', [...common, '--print', '%(title)s', '--skip-download', job.source_url], { capture: true });
-  await run('yt-dlp', [
-    ...common,
-    '-x', '--audio-format', 'mp3', '--audio-quality', '0',
-    '-o', join(directory, 'audio.%(ext)s'),
-    job.source_url
-  ]);
-  const files = await readdir(directory);
-  const audio = files.find(file => file.endsWith('.mp3'));
-  if (!audio) throw new Error('yt-dlp produced no mp3');
-  return { path: join(directory, audio), title: title.split('\n')[0] || 'Backing track' };
+/** Copy one StemDeck stem into Supabase storage and describe it for the song. */
+const saveStem = async (job, state, name, label, color) => {
+  const audio = Buffer.from(await (await stemdeck(`/api/jobs/${state.stemdeckId}/stems/${name}.mp3`)).arrayBuffer());
+  const title = state.title || 'Backing track';
+  const path = `${job.text_id}/${Date.now()}-${safeName(`${title}-${label.toLowerCase()}.mp3`)}`;
+
+  const { error } = await supabase.storage
+    .from('stems')
+    .upload(path, audio, { contentType: 'audio/mpeg', upsert: true });
+  if (error) throw new Error(`Upload failed: ${error.message}`);
+
+  const { data: { publicUrl } } = supabase.storage.from('stems').getPublicUrl(path);
+  return { label: `${title} — ${label}`, src: publicUrl, volume: 1, muted: false, color, storagePath: path };
 };
 
 const processJob = async (job) => {
   console.log(`\n▶ ${job.source_url}`);
-  const directory = await mkdtemp(join(tmpdir(), 'repetoire-'));
-  const sourcePath = `${job.text_id}/source-${Date.now()}.mp3`;
+  let state = null;
 
   try {
-    const { path, title } = await download(job, directory);
-
-    await setStage(job, 'Uploading the audio');
-    const audio = await readFile(path);
-    const { error: uploadError } = await supabase.storage
-      .from('stems')
-      .upload(sourcePath, audio, { contentType: 'audio/mpeg', upsert: true });
-    if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
-    const { data: { publicUrl } } = supabase.storage.from('stems').getPublicUrl(sourcePath);
-
-    await setStage(job, 'Splitting the stems');
-    const uploaded = await api('upload', { url: publicUrl, filename: `${safeName(title)}.mp3` });
-    const { task_id: taskId } = await api('split', { source_id: uploaded.id, stem: 'vocals' });
-
-    let tracks = null;
-    while (!tracks) {
-      await wait(5000);
-      const { result } = await api('check', { task_ids: [taskId] });
-      const task = result?.[taskId];
-      if (!task) throw new Error('The split task disappeared');
-      if (task.status === 'error' || task.status === 'server_error') throw new Error(task.error?.detail || 'The split failed');
-      if (task.status === 'cancelled') throw new Error('The split was cancelled');
-      if (task.status === 'success') tracks = task.result?.tracks || [];
-      else await setStage(job, `Splitting the stems (${task.progress || 0}%)`);
-    }
+    state = await separate(job);
 
     await setStage(job, 'Saving the stems');
-    const stems = [];
-    for (const track of tracks) {
-      const isBacking = track.type === 'back';
-      const extension = (track.name || track.url).split('.').pop().split('?')[0] || 'mp3';
-      const path = `${job.text_id}/${Date.now()}-${safeName(`${title}-${isBacking ? 'backing' : 'vocals'}.${extension}`)}`;
-      const saved = await api('import', { url: track.url, path });
-      stems.push({
-        label: `${title} — ${isBacking ? 'Backing' : 'Vocals'}`,
-        src: saved.publicUrl,
-        volume: 1,
-        muted: false,
-        color: isBacking ? '#3b82f6' : '#f59e0b',
-        storagePath: saved.storagePath
-      });
-    }
+    const stems = [
+      // "original" is every stem except the vocals, summed: the backing track
+      await saveStem(job, state, 'original', 'Backing', '#3b82f6'),
+      await saveStem(job, state, 'vocals', 'Vocals', '#f59e0b')
+    ];
 
     // Keep any tracks the song already had
     const { data: song } = await supabase.from('texts').select('stems').eq('id', job.text_id).single();
@@ -162,14 +136,14 @@ const processJob = async (job) => {
     if (saveError) throw new Error(`Could not attach the stems: ${saveError.message}`);
 
     await finish(job, 'done');
-    console.log(`✓ ${title}: ${stems.length} stems attached`);
+    console.log(`✓ ${state.title}: ${stems.length} stems attached`);
   } catch (error) {
     console.error(`✗ ${error.message}`);
     await finish(job, 'error', error.message);
   } finally {
-    // The source copy has done its job either way
-    await supabase.storage.from('stems').remove([sourcePath]).catch(() => {});
-    await rm(directory, { recursive: true, force: true });
+    if (CLEANUP && state?.stemdeckId) {
+      await stemdeck(`/api/jobs/${state.stemdeckId}`, { method: 'DELETE' }).catch(() => {});
+    }
   }
 };
 
@@ -202,7 +176,14 @@ const claimNextJob = async () => {
   return claimed?.length ? job : null;
 };
 
-console.log(`Watching for backing track jobs (${APP_URL})`);
+// Fail at the start rather than halfway through someone's first job
+const health = await fetch(`${STEMDECK_URL}/api/health`).catch(() => null);
+if (!health?.ok) {
+  console.error(`StemDeck is not running at ${STEMDECK_URL}. Start it with: cd ~/Developer/stemdeck && ./run.sh start`);
+  process.exit(1);
+}
+
+console.log(`Watching for backing track jobs (StemDeck at ${STEMDECK_URL})`);
 if (runOnce) console.log('Single job mode');
 
 for (;;) {
