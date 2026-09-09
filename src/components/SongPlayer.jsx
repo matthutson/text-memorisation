@@ -1,27 +1,55 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { getPeaks } from '../utils/peaks';
+import SongAudio from '../utils/songAudio';
+import { peaksFromBuffer } from '../utils/peaks';
 import { bookmarkAt, nextBookmark, previousBookmark } from '../utils/bookmarks';
-import { applyLoopRegion, applyPlaybackRate, clearLoopRegion, seekTo } from '../utils/playerControl';
-import { releasePitchShifted, renderPitchShifted } from '../utils/pitchShift';
 
-const waveformHeight = () => (window.innerWidth < 768 ? 56 : 84);
+const waveformHeight = () => (window.innerWidth < 768 ? 64 : 96);
 
 const formatTime = (seconds, { signed = false } = {}) => {
   if (seconds === null || seconds === undefined || Number.isNaN(seconds)) return '--:--.-';
-  const sign = signed ? '-' : '';
   const total = Math.max(0, seconds);
   const mins = Math.floor(total / 60);
   const secs = Math.floor(total % 60);
   const tenths = Math.floor((total * 10) % 10);
-  return `${sign}${mins}:${secs.toString().padStart(2, '0')}.${tenths}`;
+  return `${signed ? '-' : ''}${mins}:${secs.toString().padStart(2, '0')}.${tenths}`;
 };
 
+// Icons are drawn on a 24 unit grid so they line up at any button size
+const glyphs = {
+  play: <path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none" />,
+  pause: <path d="M8 4h3v16H8zM13 4h3v16h-3z" fill="currentColor" stroke="none" />,
+  prevMark: <><path d="M18 5v14l-10-7z" fill="currentColor" stroke="none" /><path d="M6 5v14" /></>,
+  nextMark: <><path d="M6 5v14l10-7z" fill="currentColor" stroke="none" /><path d="M18 5v14" /></>,
+  back5: <><path d="M11 8l-5 4 5 4z" fill="currentColor" stroke="none" /><path d="M18 8l-5 4 5 4z" fill="currentColor" stroke="none" /></>,
+  fwd5: <><path d="M13 8l5 4-5 4z" fill="currentColor" stroke="none" /><path d="M6 8l5 4-5 4z" fill="currentColor" stroke="none" /></>,
+  loop: <><path d="M4 9h13a3 3 0 0 1 0 6h-2" /><path d="M7 5L4 9l3 4" /><path d="M20 15H7a3 3 0 0 1 0-6h2" /><path d="M17 19l3-4-3-4" /></>,
+  cross: <path d="M6 6l12 12M18 6L6 18" />,
+  arrowLeft: <path d="M15 5l-7 7 7 7" />,
+  arrowRight: <path d="M9 5l7 7-7 7" />,
+  minus: <path d="M5 12h14" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  zoomIn: <><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4M11 8v6M8 11h6" /></>,
+  zoomOut: <><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4M8 11h6" /></>,
+  addMark: <><path d="M6 3h9a2 2 0 0 1 2 2v16l-6.5-4.5L4 21V5a2 2 0 0 1 2-2z" /><path d="M19 3v6M22 6h-6" /></>,
+  markLines: <><path d="M5 4h10a2 2 0 0 1 2 2v15l-7-4.5L5 21z" /><path d="M20 5h1M20 9h1M20 13h1" /></>,
+  follow: <><circle cx="12" cy="12" r="3" /><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7z" /></>,
+  trash: <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />,
+  sliders: <><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" /></>,
+  flat: <><path d="M9 3v14" /><path d="M9 10c3-2 5-1 5 1s-2 4-5 6" /></>,
+  sharp: <><path d="M9 3v16M15 5v16M6 9l12-2M6 15l12-2" /></>
+};
+
+const Glyph = ({ name, size = 16 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    {glyphs[name]}
+  </svg>
+);
+
 /**
- * Transport bar for the backing track: waveform, A-B loop, speed and the
- * bookmarks that tie moments in the audio to lines of the lyrics.
+ * The practice transport: waveform, A-B looping, speed and key, and the
+ * bookmarks that tie moments in the song to lines of the lyrics.
  */
 export default function SongPlayer({
-  player,
   stems = [],
   bookmarks = [],
   isDarkMode,
@@ -30,103 +58,89 @@ export default function SongPlayer({
   isFollowing,
   onToggleFollowing,
   onActiveLineChange,
+  onJumpToLine,
   onDeleteBookmark,
+  onClearBookmarks,
   onAddBookmark,
-  onLoopBookmark,
   isStemsPanelOpen,
   onToggleStemsPanel,
-  onPitchSources
+  onEngineReady
 }) {
+  const [engineState, setEngineState] = useState('idle'); // idle | loading | ready | error
+  const [duration, setDuration] = useState(0);
   const [displayTime, setDisplayTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [waveform, setWaveform] = useState(null); // { src, peaks, duration }
-  const [failedSrc, setFailedSrc] = useState(null);
-  const [playerDuration, setPlayerDuration] = useState(0);
+  const [peaks, setPeaks] = useState(null);
   const [loopA, setLoopA] = useState(null);
   const [loopB, setLoopB] = useState(null);
   const [isLoopOn, setIsLoopOn] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const [pitch, setPitch] = useState(0); // semitones, independent of speed
-  const [pitchProgress, setPitchProgress] = useState(null); // null unless re-rendering
-  const [zoom, setZoom] = useState(1); // 1 = the whole track
-  const [dragging, setDragging] = useState(null); // 'A' | 'B' | 'playhead'
+  const [pitch, setPitch] = useState(0);
+  const [zoom, setZoom] = useState(1);
+  const [dragging, setDragging] = useState(null);
   const [height] = useState(waveformHeight);
 
+  const engineRef = useRef(null);
   const canvasRef = useRef(null);
   const trackRef = useRef(null);
   const timeRef = useRef(0);
   const drawRef = useRef(() => {});
-  const loopAppliedRef = useRef(false);
   const activeLineRef = useRef(undefined);
 
   const colors = useMemo(() => (isDarkMode
-    ? { wave: '#4b5563', played: '#60a5fa', playhead: '#ef4444', loop: 'rgba(96,165,250,0.16)', pin: '#f59e0b', text: '#e5e7eb', dim: '#9ca3af', panel: '#1f2937', border: '#374151', control: '#374151' }
-    : { wave: '#cbd5e1', played: '#2563eb', playhead: '#ef4444', loop: 'rgba(37,99,235,0.12)', pin: '#d97706', text: '#111827', dim: '#6b7280', panel: '#ffffff', border: '#e5e7eb', control: '#f3f4f6' }
+    ? { wave: '#4b5563', played: '#60a5fa', head: '#ef4444', loopFill: 'rgba(96,165,250,0.16)', pin: '#f59e0b', text: '#e5e7eb', dim: '#9ca3af', panel: '#1f2937', border: '#374151', control: '#374151', deck: '#111827' }
+    : { wave: '#cbd5e1', played: '#2563eb', head: '#ef4444', loopFill: 'rgba(37,99,235,0.12)', pin: '#d97706', text: '#111827', dim: '#6b7280', panel: '#ffffff', border: '#e5e7eb', control: '#f3f4f6', deck: '#f8fafc' }
   ), [isDarkMode]);
 
-  const audioSrc = stems[0]?.src || null;
+  const sources = useMemo(() => stems.map(stem => stem.src).join('|'), [stems]);
 
-  // ---- Waveform data -----------------------------------------------------
+  // ---- Engine ------------------------------------------------------------
   useEffect(() => {
-    if (!audioSrc) return undefined;
+    if (!stems.length) return undefined;
+
+    const engine = new SongAudio();
+    engineRef.current = engine;
     let cancelled = false;
-    getPeaks(audioSrc)
-      .then(result => {
-        if (!cancelled) setWaveform({ src: audioSrc, ...result });
+    setEngineState('loading');
+
+    engine.load(stems)
+      .then(() => {
+        if (cancelled) return;
+        setDuration(engine.duration);
+        const first = engine.tracks[0];
+        if (first) setPeaks(peaksFromBuffer(first.src, first.buffer).peaks);
+        setEngineState('ready');
+        if (onEngineReady) onEngineReady(engine);
       })
       .catch(error => {
-        console.warn('[SongPlayer] Could not build waveform:', error?.message || error);
-        if (!cancelled) setFailedSrc(audioSrc);
+        console.warn('[SongPlayer] Could not load the tracks:', error?.message || error);
+        if (!cancelled) setEngineState('error');
       });
-    return () => { cancelled = true; };
-  }, [audioSrc]);
 
-  // Peaks belong to the track they were decoded from, so a stem swap clears them
-  const peaks = waveform?.src === audioSrc ? waveform.peaks : null;
-  const duration = (waveform?.src === audioSrc ? waveform.duration : 0) || playerDuration;
-  const peaksState = !audioSrc
-    ? 'idle'
-    : peaks ? 'ready' : (failedSrc === audioSrc ? 'error' : 'loading');
+    const offPlay = engine.on('play', () => setIsPlaying(true));
+    const offPause = engine.on('pause', () => setIsPlaying(false));
 
-  // ---- Player events -----------------------------------------------------
-  useEffect(() => {
-    if (!player) return;
-
-    const onStart = () => setIsPlaying(true);
-    const onPause = () => setIsPlaying(false);
-    const onEnd = () => setIsPlaying(false);
-    const onTimeUpdate = (event) => {
-      const t = event.detail?.t;
-      if (typeof t === 'number') {
-        timeRef.current = t;
-        setDisplayTime(t);
-      }
-      const playerTotal = player.state?.duration;
-      if (playerTotal && !waveform) setPlayerDuration(playerTotal);
-    };
-
-    player.addEventListener('start', onStart);
-    player.addEventListener('pause', onPause);
-    player.addEventListener('end', onEnd);
-    player.addEventListener('timeupdate', onTimeUpdate);
     return () => {
-      player.removeEventListener('start', onStart);
-      player.removeEventListener('pause', onPause);
-      player.removeEventListener('end', onEnd);
-      player.removeEventListener('timeupdate', onTimeUpdate);
+      cancelled = true;
+      offPlay();
+      offPause();
+      engine.destroy();
+      engineRef.current = null;
+      if (onEngineReady) onEngineReady(null);
     };
-  }, [player, waveform]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sources]);
 
-  // Smooth playhead: the player's timeupdate only fires a few times a second
+  // Follow the playhead while it moves
   useEffect(() => {
-    if (!player || !isPlaying) return;
+    if (!isPlaying) return undefined;
     let frame;
     let lastShown = -1;
     const tick = () => {
-      const t = player.state?.currentTime;
-      if (typeof t === 'number') {
+      const engine = engineRef.current;
+      if (engine) {
+        const t = engine.currentTime;
         timeRef.current = t;
-        // The readout only needs tenths; the canvas gets every frame
         if (Math.abs(t - lastShown) >= 0.08) {
           lastShown = t;
           setDisplayTime(t);
@@ -137,35 +151,19 @@ export default function SongPlayer({
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [player, isPlaying]);
+  }, [isPlaying]);
 
-  // ---- A-B loop ----------------------------------------------------------
-  // Set the playback region and let the audio loop natively, which keeps the
-  // loop gapless (see GaplessController).
+  // ---- Settings that the engine owns -------------------------------------
+  useEffect(() => { engineRef.current?.setTempo(speed); }, [speed]);
+  useEffect(() => { engineRef.current?.setSemitones(pitch); }, [pitch]);
   useEffect(() => {
-    if (!player) return;
-    const hasLoop = isLoopOn && loopA !== null && loopB !== null && loopB > loopA;
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (isLoopOn && loopA !== null && loopB !== null && loopB > loopA) engine.setLoop(loopA, loopB);
+    else engine.setLoop(null, null);
+  }, [isLoopOn, loopA, loopB]);
 
-    if (hasLoop) {
-      applyLoopRegion(player, loopA, loopB);
-      loopAppliedRef.current = true;
-    } else if (loopAppliedRef.current) {
-      clearLoopRegion(player);
-      loopAppliedRef.current = false;
-    }
-  }, [player, isLoopOn, loopA, loopB]);
-
-  // ---- Speed -------------------------------------------------------------
-  useEffect(() => {
-    if (!player) return;
-    const apply = () => applyPlaybackRate(player, speed);
-    apply();
-    // Newly added stems upgrade asynchronously
-    const timer = setTimeout(apply, 150);
-    return () => clearTimeout(timer);
-  }, [player, speed, stems]);
-
-  // ---- Which lyric line is playing --------------------------------------
+  // ---- Which lyric line is playing ---------------------------------------
   useEffect(() => {
     if (!onActiveLineChange) return;
     const active = bookmarkAt(bookmarks, displayTime);
@@ -176,8 +174,7 @@ export default function SongPlayer({
     }
   }, [bookmarks, displayTime, onActiveLineChange]);
 
-  // ---- Canvas ------------------------------------------------------------
-  // The waveform shows a window of the track, centred on the playhead when zoomed
+  // ---- Waveform ----------------------------------------------------------
   const windowFor = useCallback((atTime) => {
     const total = duration || 1;
     const span = total / zoom;
@@ -189,68 +186,61 @@ export default function SongPlayer({
     const canvas = canvasRef.current;
     if (!canvas) return;
     const width = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    if (!width || !height) return;
+    const boxHeight = canvas.clientHeight;
+    if (!width || !boxHeight) return;
 
     const ratio = window.devicePixelRatio || 1;
-    if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(boxHeight * ratio)) {
       canvas.width = Math.round(width * ratio);
-      canvas.height = Math.round(height * ratio);
+      canvas.height = Math.round(boxHeight * ratio);
     }
 
     const ctx = canvas.getContext('2d');
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-    ctx.clearRect(0, 0, width, height);
+    ctx.clearRect(0, 0, width, boxHeight);
 
     const view = windowFor(timeRef.current);
     const xOf = (seconds) => ((seconds - view.start) / view.span) * width;
-    const middle = height / 2;
+    const middle = boxHeight / 2;
 
-    // A-B region
     if (loopA !== null && loopB !== null && loopB > loopA) {
-      ctx.fillStyle = colors.loop;
-      ctx.fillRect(xOf(loopA), 0, xOf(loopB) - xOf(loopA), height);
+      ctx.fillStyle = colors.loopFill;
+      ctx.fillRect(xOf(loopA), 0, xOf(loopB) - xOf(loopA), boxHeight);
     }
 
-    // Waveform
     if (peaks && peaks.length) {
       const playedX = xOf(timeRef.current);
-      const barWidth = 2;
-      const gap = 1;
-      const step = barWidth + gap;
+      const step = 3;
       const total = duration || 1;
       for (let x = 0; x < width; x += step) {
         const seconds = view.start + (x / width) * view.span;
         const index = Math.floor((seconds / total) * peaks.length);
         const peak = peaks[Math.min(Math.max(0, index), peaks.length - 1)] || 0;
-        const barHeight = Math.max(1.5, peak * (height - 8));
+        const barHeight = Math.max(1.5, peak * (boxHeight - 10));
         ctx.fillStyle = x <= playedX ? colors.played : colors.wave;
-        ctx.fillRect(x, middle - barHeight / 2, barWidth, barHeight);
+        ctx.fillRect(x, middle - barHeight / 2, 2, barHeight);
       }
     }
 
-    // Loop edges
     ctx.lineWidth = 2;
-    [[loopA, 'A'], [loopB, 'B']].forEach(([point]) => {
+    [loopA, loopB].forEach(point => {
       if (point === null) return;
       ctx.strokeStyle = colors.played;
       ctx.beginPath();
       ctx.moveTo(xOf(point), 0);
-      ctx.lineTo(xOf(point), height);
+      ctx.lineTo(xOf(point), boxHeight);
       ctx.stroke();
     });
 
-    // Playhead
     const headX = xOf(timeRef.current);
-    ctx.strokeStyle = colors.playhead;
+    ctx.strokeStyle = colors.head;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(headX, 0);
-    ctx.lineTo(headX, height);
+    ctx.lineTo(headX, boxHeight);
     ctx.stroke();
   }, [colors, duration, loopA, loopB, peaks, windowFor]);
 
-  // The animation loop draws through a ref so it never restarts mid-playback
   useEffect(() => {
     drawRef.current = draw;
     draw();
@@ -264,12 +254,13 @@ export default function SongPlayer({
 
   // ---- Transport ---------------------------------------------------------
   const seek = useCallback((seconds) => {
-    if (!player || !duration) return;
-    const clamped = seekTo(player, seconds, duration);
-    timeRef.current = clamped;
-    setDisplayTime(clamped);
+    const engine = engineRef.current;
+    if (!engine || !duration) return;
+    const at = engine.seek(seconds);
+    timeRef.current = at;
+    setDisplayTime(at);
     drawRef.current();
-  }, [player, duration]);
+  }, [duration]);
 
   const timeFromEvent = useCallback((event) => {
     const track = trackRef.current;
@@ -280,15 +271,14 @@ export default function SongPlayer({
     return Math.min(Math.max(0, view.start + ratio * view.span), duration);
   }, [duration, windowFor]);
 
-  const handleTrackPointerDown = (event) => {
+  const handlePointerDown = (event) => {
     if (!duration) return;
     event.currentTarget.setPointerCapture?.(event.pointerId);
-    const t = timeFromEvent(event);
-    if (dragging === null) seek(t);
+    seek(timeFromEvent(event));
     setDragging('playhead');
   };
 
-  const handleTrackPointerMove = (event) => {
+  const handlePointerMove = (event) => {
     if (!dragging) return;
     const t = timeFromEvent(event);
     if (dragging === 'playhead') seek(t);
@@ -296,13 +286,21 @@ export default function SongPlayer({
     if (dragging === 'B') setLoopB(Math.max(t, (loopA ?? 0) + 0.1));
   };
 
-  const endDrag = () => setDragging(null);
-
   const togglePlay = () => {
-    if (!player) return;
-    if (isPlaying) player.pause();
-    else player.play();
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (isPlaying) engine.pause();
+    else engine.play();
   };
+
+  /** Move to a bookmark and take the lyrics with us */
+  const goToBookmark = (bookmark) => {
+    if (!bookmark) return;
+    seek(bookmark.time);
+    if (typeof bookmark.line === 'number' && onJumpToLine) onJumpToLine(bookmark.line);
+  };
+
+  const activeBookmark = bookmarkAt(bookmarks, displayTime);
 
   const nudge = (delta) => {
     if (loopA === null || loopB === null) {
@@ -317,8 +315,7 @@ export default function SongPlayer({
 
   const scaleLoop = (factor) => {
     if (loopA === null || loopB === null) return;
-    const width = (loopB - loopA) * factor;
-    setLoopB(Math.min(duration, loopA + Math.max(0.2, width)));
+    setLoopB(Math.min(duration, loopA + Math.max(0.2, (loopB - loopA) * factor)));
   };
 
   const setA = () => {
@@ -340,102 +337,59 @@ export default function SongPlayer({
     setIsLoopOn(false);
   };
 
-  const goToPrevious = () => {
-    const target = previousBookmark(bookmarks, timeRef.current);
-    seek(target ? target.time : 0);
-  };
-
-  const goToNext = () => {
-    const target = nextBookmark(bookmarks, timeRef.current);
-    if (target) seek(target.time);
-  };
-
-  const activeBookmark = bookmarkAt(bookmarks, displayTime);
-
-  // Transposing re-renders the audio, so playback stops and resumes in place
-  const changePitch = async (semitones) => {
-    if (pitchProgress !== null) return;
-    const target = Math.max(-6, Math.min(6, semitones));
-    const resumeAt = timeRef.current;
-    if (player && isPlaying) player.pause();
-
-    setPitchProgress(0);
-    try {
-      let keep = [];
-      if (target === 0) {
-        onPitchSources?.(null);
-      } else {
-        const sources = {};
-        for (const stem of stems) {
-          sources[stem.src] = await renderPitchShifted(stem.src, target, setPitchProgress);
-        }
-        onPitchSources?.(sources);
-        keep = Object.values(sources);
-      }
-      setPitch(target);
-
-      // Let the player load the new files, then restore speed and position and
-      // free the copies nothing points at any more
-      setTimeout(() => {
-        applyPlaybackRate(player, speed);
-        seek(resumeAt);
-        releasePitchShifted(keep);
-      }, 900);
-    } catch (error) {
-      console.warn('[SongPlayer] Could not change pitch:', error?.message || error);
-    } finally {
-      setPitchProgress(null);
-    }
-  };
-
-  const addBookmarkHere = () => {
-    if (onAddBookmark) onAddBookmark(timeRef.current);
-  };
-
   const loopCurrentSection = () => {
     if (!activeBookmark) return;
     const following = nextBookmark(bookmarks, activeBookmark.time);
     setLoopA(activeBookmark.time);
     setLoopB(following ? following.time : duration);
     setIsLoopOn(true);
-    seek(activeBookmark.time);
-    if (onLoopBookmark) onLoopBookmark(activeBookmark);
+    goToBookmark(activeBookmark);
   };
 
   // ---- Rendering ---------------------------------------------------------
-  const group = { display: 'flex', alignItems: 'center', gap: 6 };
-
-  const groupLabel = {
-    fontSize: 10,
-    fontWeight: 700,
-    letterSpacing: '0.08em',
-    textTransform: 'uppercase',
-    color: colors.dim
-  };
-
-  const buttonStyle = (active = false, extra = {}) => ({
+  const button = (active = false, extra = {}) => ({
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
-    height: 34,
-    padding: '0 10px',
-    borderRadius: 8,
+    gap: 4,
+    height: 32,
+    minWidth: 34,
+    padding: '0 8px',
+    borderRadius: 7,
     border: `1px solid ${active ? colors.played : colors.border}`,
     background: active ? colors.played : colors.control,
     color: active ? '#fff' : colors.text,
     fontSize: 12,
     fontWeight: 600,
-    letterSpacing: '0.03em',
     cursor: 'pointer',
     whiteSpace: 'nowrap',
     ...extra
   });
 
-  const remaining = duration ? duration - displayTime : 0;
-  const view = windowFor(displayTime);
-  const positionPercent = (seconds) => `${((seconds - view.start) / view.span) * 100}%`;
-  const isInView = (seconds) => seconds >= view.start && seconds <= view.start + view.span;
+  const groupStyle = { display: 'flex', alignItems: 'center', gap: 4 };
+  const captionStyle = {
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: '0.1em',
+    textTransform: 'uppercase',
+    color: colors.dim,
+    marginBottom: 3
+  };
+
+  const Section = ({ caption, children }) => (
+    <div style={{ display: 'flex', flexDirection: 'column' }}>
+      <span style={captionStyle}>{caption}</span>
+      <div style={groupStyle}>{children}</div>
+    </div>
+  );
+
+  const readout = (text, active, onClick, title) => (
+    <button
+      style={{ ...button(active), minWidth: 58, fontVariantNumeric: 'tabular-nums' }}
+      onClick={onClick}
+      title={title}
+    >{text}</button>
+  );
 
   if (!stems.length) {
     return (
@@ -447,19 +401,21 @@ export default function SongPlayer({
         display: 'flex',
         alignItems: 'center',
         gap: 10,
-        padding: '8px 12px'
+        padding: '10px 12px'
       }}>
-        <button
-          style={buttonStyle(isStemsPanelOpen)}
-          onClick={onToggleStemsPanel}
-          title="Add or split a backing track"
-        >Tracks</button>
+        <button style={button(isStemsPanelOpen)} onClick={onToggleStemsPanel} title="Add or split a backing track">
+          <Glyph name="sliders" /> Tracks
+        </button>
         <span style={{ fontSize: 12, color: colors.dim }}>
-          No backing track yet. Add one to get the waveform, looping and bookmarks.
+          No backing track yet. Add one for the waveform, looping and bookmarks.
         </span>
       </div>
     );
   }
+
+  const view = windowFor(displayTime);
+  const positionPercent = (seconds) => `${((seconds - view.start) / view.span) * 100}%`;
+  const isInView = (seconds) => seconds >= view.start && seconds <= view.start + view.span;
 
   return (
     <div style={{
@@ -472,269 +428,182 @@ export default function SongPlayer({
       {/* Waveform */}
       <div
         ref={trackRef}
-        onPointerDown={handleTrackPointerDown}
-        onPointerMove={handleTrackPointerMove}
-        onPointerUp={endDrag}
-        onPointerCancel={endDrag}
-        style={{
-          position: 'relative',
-          height,
-          cursor: 'pointer',
-          background: isDarkMode ? '#111827' : '#f8fafc',
-          touchAction: 'none'
-        }}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={() => setDragging(null)}
+        onPointerCancel={() => setDragging(null)}
+        style={{ position: 'relative', height, cursor: 'pointer', background: colors.deck, touchAction: 'none' }}
       >
         <canvas ref={canvasRef} style={{ width: '100%', height: '100%', display: 'block' }} />
 
-        {peaksState === 'loading' && (
+        {engineState !== 'ready' && (
           <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: colors.dim }}>
-            Building waveform…
-          </div>
-        )}
-        {peaksState === 'error' && (
-          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, color: colors.dim }}>
-            Waveform unavailable — transport still works
+            {engineState === 'error' ? 'Could not load the backing track' : 'Loading the track…'}
           </div>
         )}
 
-        {/* Loop handles */}
         {[['A', loopA], ['B', loopB]].map(([name, point]) => (point === null || !isInView(point)) ? null : (
           <div
             key={name}
             onPointerDown={(event) => { event.stopPropagation(); setDragging(name); trackRef.current?.setPointerCapture?.(event.pointerId); }}
             style={{
-              position: 'absolute',
-              top: 0,
-              left: positionPercent(point),
-              transform: 'translateX(-50%)',
-              height: '100%',
-              width: 18,
-              display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'center',
-              cursor: 'ew-resize',
-              touchAction: 'none'
+              position: 'absolute', top: 0, left: positionPercent(point), transform: 'translateX(-50%)',
+              height: '100%', width: 18, display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+              cursor: 'ew-resize', touchAction: 'none'
             }}
           >
-            <span style={{
-              background: colors.played,
-              color: '#fff',
-              fontSize: 10,
-              fontWeight: 700,
-              lineHeight: '14px',
-              padding: '0 5px',
-              borderRadius: 3
-            }}>{name}</span>
+            <span style={{ background: colors.played, color: '#fff', fontSize: 10, fontWeight: 700, lineHeight: '14px', padding: '0 5px', borderRadius: 3 }}>
+              {name}
+            </span>
           </div>
         ))}
 
-        {/* Bookmark pins */}
         {duration > 0 && bookmarks.filter(bookmark => isInView(bookmark.time)).map(bookmark => (
           <div
             key={bookmark.id}
             title={bookmark.label || formatTime(bookmark.time)}
-            onPointerDown={(event) => { event.stopPropagation(); seek(bookmark.time); }}
+            onPointerDown={(event) => { event.stopPropagation(); goToBookmark(bookmark); }}
             style={{
-              position: 'absolute',
-              bottom: 0,
-              left: positionPercent(bookmark.time),
-              transform: 'translateX(-50%)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              cursor: 'pointer',
-              maxWidth: 120
+              position: 'absolute', bottom: 0, left: positionPercent(bookmark.time), transform: 'translateX(-50%)',
+              display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer', maxWidth: 120
             }}
           >
             {isMarkMode && (
               <button
                 onPointerDown={(event) => { event.stopPropagation(); onDeleteBookmark?.(bookmark.id); }}
-                style={{
-                  border: 'none',
-                  borderRadius: '50%',
-                  width: 16,
-                  height: 16,
-                  lineHeight: '14px',
-                  fontSize: 11,
-                  cursor: 'pointer',
-                  background: '#ef4444',
-                  color: '#fff',
-                  marginBottom: 2
-                }}
+                style={{ border: 'none', borderRadius: '50%', width: 16, height: 16, lineHeight: '14px', fontSize: 11, cursor: 'pointer', background: '#ef4444', color: '#fff', marginBottom: 2 }}
                 aria-label="Delete bookmark"
               >×</button>
             )}
             {activeBookmark?.id === bookmark.id && (
               <span style={{
-                fontSize: 10,
-                fontWeight: 600,
-                color: colors.pin,
+                fontSize: 10, fontWeight: 600, color: colors.pin,
                 background: isDarkMode ? 'rgba(17,24,39,0.9)' : 'rgba(255,255,255,0.9)',
-                padding: '0 3px',
-                borderRadius: 2,
-                maxWidth: 110,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                whiteSpace: 'nowrap'
+                padding: '0 3px', borderRadius: 2, maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
               }}>{bookmark.label || formatTime(bookmark.time)}</span>
             )}
             <span style={{
-              width: 0,
-              height: 0,
-              borderLeft: '5px solid transparent',
-              borderRight: '5px solid transparent',
+              width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent',
               borderBottom: `7px solid ${activeBookmark?.id === bookmark.id ? colors.pin : colors.dim}`
             }} />
           </div>
         ))}
       </div>
 
-      {/* Transport */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 10,
-        flexWrap: 'wrap',
-        padding: '8px 12px'
-      }}>
-        <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: colors.dim, minWidth: 52 }}>
+      {/* Transport, with the play control given the most weight */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px 4px' }}>
+        <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: colors.dim, minWidth: 56 }}>
           {formatTime(displayTime)}
         </span>
-
-        {/* Playback */}
-        <div style={group}>
-          <button style={buttonStyle()} onClick={goToPrevious} title="Jump to the previous bookmark">Prev mark</button>
-          <button style={buttonStyle()} onClick={() => seek(timeRef.current - 5)} title="Back five seconds">Back 5s</button>
+        <div style={{ ...groupStyle, gap: 6, margin: '0 auto' }}>
+          <button style={button(false, { height: 38 })} onClick={() => goToBookmark(previousBookmark(bookmarks, timeRef.current) || bookmarks[0])} title="Previous bookmark">
+            <Glyph name="prevMark" size={18} />
+          </button>
+          <button style={button(false, { height: 38 })} onClick={() => seek(timeRef.current - 5)} title="Back five seconds">
+            <Glyph name="back5" size={18} />
+          </button>
           <button
-            style={buttonStyle(isPlaying, { minWidth: 64 })}
+            style={button(true, { height: 44, minWidth: 76, borderRadius: 22 })}
             onClick={togglePlay}
             title={isPlaying ? 'Pause' : 'Play'}
-          >{isPlaying ? 'Pause' : 'Play'}</button>
-          <button style={buttonStyle()} onClick={() => seek(timeRef.current + 5)} title="Forward five seconds">Fwd 5s</button>
-          <button style={buttonStyle()} onClick={goToNext} title="Jump to the next bookmark">Next mark</button>
+          >
+            <Glyph name={isPlaying ? 'pause' : 'play'} size={20} />
+          </button>
+          <button style={button(false, { height: 38 })} onClick={() => seek(timeRef.current + 5)} title="Forward five seconds">
+            <Glyph name="fwd5" size={18} />
+          </button>
+          <button style={button(false, { height: 38 })} onClick={() => goToBookmark(nextBookmark(bookmarks, timeRef.current))} title="Next bookmark">
+            <Glyph name="nextMark" size={18} />
+          </button>
         </div>
+        <span style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: colors.dim, minWidth: 56, textAlign: 'right' }}>
+          {formatTime(duration ? duration - displayTime : 0, { signed: true })}
+        </span>
+      </div>
 
-        {/* Loop */}
-        <div style={group}>
-          <span style={groupLabel}>Loop</span>
-          <button style={buttonStyle(loopA !== null)} onClick={setA} title="Start the loop at the playhead">Set A</button>
-          <button style={buttonStyle(loopB !== null)} onClick={setB} title="End the loop at the playhead">Set B</button>
+      {/* Sections */}
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', padding: '4px 12px 10px' }}>
+        <Section caption="Loop">
+          <button style={button(loopA !== null)} onClick={setA} title="Set the loop start at the playhead">A</button>
+          <button style={button(loopB !== null)} onClick={setB} title="Set the loop end at the playhead">B</button>
           <button
-            style={buttonStyle(isLoopOn)}
+            style={button(isLoopOn)}
             onClick={() => setIsLoopOn(!isLoopOn)}
             disabled={loopA === null || loopB === null}
-            title="Play the A to B section over and over"
-          >{isLoopOn ? 'Looping' : 'Loop off'}</button>
-          <button style={buttonStyle()} onClick={clearLoop} title="Forget the loop points">Clear</button>
-        </div>
+            title="Repeat the A to B section"
+          ><Glyph name="loop" /></button>
+          <button style={button()} onClick={clearLoop} title="Clear the loop points"><Glyph name="cross" /></button>
+          <span className="player-advanced" style={groupStyle}>
+            <button style={button()} onClick={() => nudge(-0.5)} title="Nudge the loop half a second earlier"><Glyph name="arrowLeft" /></button>
+            <button style={button()} onClick={() => nudge(0.5)} title="Nudge the loop half a second later"><Glyph name="arrowRight" /></button>
+            <button style={button()} onClick={() => scaleLoop(0.5)} title="Halve the loop">½</button>
+            <button style={button()} onClick={() => scaleLoop(2)} title="Double the loop">×2</button>
+          </span>
+        </Section>
 
-        {/* Loop fine tuning, hidden on a phone where space is tight */}
-        <div style={group} className="song-player-advanced">
-          <button style={buttonStyle()} onClick={() => nudge(-0.5)} title="Move the loop half a second earlier">Nudge −</button>
-          <button style={buttonStyle()} onClick={() => nudge(0.5)} title="Move the loop half a second later">Nudge +</button>
-          <button style={buttonStyle()} onClick={() => scaleLoop(0.5)} title="Halve the length of the loop">Halve</button>
-          <button style={buttonStyle()} onClick={() => scaleLoop(2)} title="Double the length of the loop">Double</button>
-        </div>
+        <Section caption="Speed">
+          <button style={button()} onClick={() => setSpeed(Math.max(0.25, Math.round((speed - 0.05) * 100) / 100))} title="Slower, same key">
+            <Glyph name="minus" />
+          </button>
+          {readout(`${speed.toFixed(2)}x`, speed !== 1, () => setSpeed(1), 'Back to normal speed')}
+          <button style={button()} onClick={() => setSpeed(Math.min(2, Math.round((speed + 0.05) * 100) / 100))} title="Faster, same key">
+            <Glyph name="plus" />
+          </button>
+        </Section>
 
-        {/* Speed */}
-        <div style={group}>
-          <span style={groupLabel}>Speed</span>
-          <button style={buttonStyle()} onClick={() => setSpeed(Math.max(0.25, Math.round((speed - 0.05) * 100) / 100))} title="Slow the track down">Slower</button>
-          <button
-            style={{ ...buttonStyle(speed !== 1), minWidth: 62, fontVariantNumeric: 'tabular-nums' }}
-            onClick={() => setSpeed(1)}
-            title="Back to normal speed"
-          >{speed.toFixed(2)}x</button>
-          <button style={buttonStyle()} onClick={() => setSpeed(Math.min(2, Math.round((speed + 0.05) * 100) / 100))} title="Speed the track up">Faster</button>
-        </div>
+        <Section caption="Pitch">
+          <button style={button()} onClick={() => setPitch(Math.max(-12, pitch - 1))} title="Down a semitone, same speed">
+            <Glyph name="flat" />
+          </button>
+          {readout(`${pitch > 0 ? '+' : ''}${pitch}`, pitch !== 0, () => setPitch(0), 'Back to the original key')}
+          <button style={button()} onClick={() => setPitch(Math.min(12, pitch + 1))} title="Up a semitone, same speed">
+            <Glyph name="sharp" />
+          </button>
+        </Section>
 
-        {/* Pitch */}
-        <div style={group}>
-          <span style={groupLabel}>Pitch</span>
-          <button
-            style={buttonStyle()}
-            onClick={() => changePitch(pitch - 1)}
-            disabled={pitchProgress !== null || !stems.length}
-            title="Down a semitone, without changing the speed"
-          >Down</button>
-          <button
-            style={{ ...buttonStyle(pitch !== 0), minWidth: 74, fontVariantNumeric: 'tabular-nums' }}
-            onClick={() => changePitch(0)}
-            disabled={pitchProgress !== null}
-            title="Back to the original key"
-          >
-            {pitchProgress !== null
-              ? `${pitchProgress}%`
-              : `${pitch > 0 ? '+' : ''}${pitch} semi`}
+        <Section caption="Zoom">
+          <button style={button()} onClick={() => setZoom(current => Math.max(1, current / 2))} disabled={zoom <= 1} title="Show more of the track">
+            <Glyph name="zoomOut" />
+          </button>
+          {readout(`${zoom}x`, zoom > 1, () => setZoom(1), 'Show the whole track')}
+          <button style={button()} onClick={() => setZoom(current => Math.min(32, current * 2))} disabled={zoom >= 32} title="Zoom into the playhead">
+            <Glyph name="zoomIn" />
+          </button>
+        </Section>
+
+        <Section caption="Marks">
+          <button style={button()} onClick={() => onAddBookmark?.(timeRef.current)} title="Drop a bookmark at the playhead">
+            <Glyph name="addMark" />
+          </button>
+          <button style={button(isMarkMode)} onClick={onToggleMarkMode} title="Tap a lyric line to pin it to this moment">
+            <Glyph name="markLines" />
+          </button>
+          <button style={button(isFollowing)} onClick={onToggleFollowing} disabled={bookmarks.length === 0} title="Keep the playing line on screen">
+            <Glyph name="follow" />
+          </button>
+          <button style={button()} onClick={loopCurrentSection} disabled={!activeBookmark} title="Loop from this bookmark to the next">
+            <Glyph name="loop" /> Verse
           </button>
           <button
-            style={buttonStyle()}
-            onClick={() => changePitch(pitch + 1)}
-            disabled={pitchProgress !== null || !stems.length}
-            title="Up a semitone, without changing the speed"
-          >Up</button>
-        </div>
-
-        {/* Waveform zoom */}
-        <div style={group}>
-          <span style={groupLabel}>Zoom</span>
-          <button
-            style={buttonStyle()}
-            onClick={() => setZoom(current => Math.max(1, current / 2))}
-            disabled={zoom <= 1}
-            title="Show more of the track"
-          >Out</button>
-          <button style={{ ...buttonStyle(zoom > 1), minWidth: 46 }} onClick={() => setZoom(1)} title="Show the whole track">
-            {zoom}x
-          </button>
-          <button
-            style={buttonStyle()}
-            onClick={() => setZoom(current => Math.min(32, current * 2))}
-            disabled={zoom >= 32}
-            title="Zoom into the playhead"
-          >In</button>
-        </div>
-
-        {/* Lyrics and bookmarks */}
-        <div style={group}>
-          <span style={groupLabel}>Marks</span>
-          <button style={buttonStyle()} onClick={addBookmarkHere} title="Drop a bookmark at the playhead">Add mark</button>
-          <button
-            style={buttonStyle(isMarkMode)}
-            onClick={onToggleMarkMode}
-            title="Tap a lyric line while the track plays to pin it to that moment"
-          >{isMarkMode ? 'Tap a line…' : 'Mark lines'}</button>
-          <button
-            style={buttonStyle(isFollowing)}
-            onClick={onToggleFollowing}
+            style={button()}
+            onClick={() => {
+              if (bookmarks.length && confirm(`Delete all ${bookmarks.length} bookmarks for this song?`)) onClearBookmarks?.();
+            }}
             disabled={bookmarks.length === 0}
-            title="Highlight and scroll to the line that is playing"
-          >Follow text</button>
-          <button
-            style={buttonStyle()}
-            onClick={loopCurrentSection}
-            disabled={!activeBookmark}
-            title="Loop from the bookmark that is playing to the next one"
-          >Loop verse</button>
-        </div>
+            title="Delete every bookmark on this song"
+          ><Glyph name="trash" /></button>
+        </Section>
 
-        <div style={group}>
-          <button
-            style={buttonStyle(isStemsPanelOpen)}
-            onClick={onToggleStemsPanel}
-            title="Add, split and mix the backing tracks"
-          >Tracks</button>
-        </div>
-
-        <span style={{ flex: 1 }} />
-        <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums', color: colors.dim }}>
-          {formatTime(remaining, { signed: true })}
-        </span>
+        <Section caption="Tracks">
+          <button style={button(isStemsPanelOpen)} onClick={onToggleStemsPanel} title="Add, split and mix the backing tracks">
+            <Glyph name="sliders" />
+          </button>
+        </Section>
       </div>
 
       <style>{`
         @media (max-width: 640px) {
-          .song-player-advanced { display: none !important; }
+          .player-advanced { display: none !important; }
         }
       `}</style>
     </div>

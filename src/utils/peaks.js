@@ -63,6 +63,18 @@ const bucketPeaks = (channel, buckets) => {
   return loudest > 0 ? peaks.map(p => p / loudest) : peaks;
 };
 
+/** Peaks for audio that has already been decoded, e.g. by the player */
+export const peaksFromBuffer = (url, audioBuffer) => {
+  const cached = readCache(url);
+  if (cached) return cached;
+  const result = {
+    peaks: bucketPeaks(audioBuffer.getChannelData(0), PEAK_BUCKETS),
+    duration: audioBuffer.duration
+  };
+  writeCache(url, result);
+  return result;
+};
+
 /**
  * Decode `url` and return { peaks: number[] (0-1), duration: seconds }.
  * Results are cached in memory and localStorage.

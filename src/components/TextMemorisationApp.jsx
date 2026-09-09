@@ -6,7 +6,6 @@ import { updateText } from '../utils/storage';
 import StemPlayerWrapper from './StemPlayerWrapper';
 import SongPlayer from './SongPlayer';
 import { loadBookmarks, saveBookmarks, sortBookmarks } from '../utils/bookmarks';
-import { seekTo } from '../utils/playerControl';
 
 export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
   const [text, setText] = useState(initialText);
@@ -30,15 +29,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [isEditing, setIsEditing] = useState(!initialText);
   const [fontSize, setFontSize] = useState(() => window.innerWidth < 768 ? 10 : 12);
   const [anchorWords, setAnchorWords] = useState(2); // Words kept visible at the start of every line
-  const [player, setPlayer] = useState(null); // the <stemplayer-js> element
+  const [engine, setEngine] = useState(null); // the audio engine, owned by the transport bar
   const [bookmarks, setBookmarks] = useState(() => loadBookmarks(textData));
   const [isMarkMode, setIsMarkMode] = useState(false);
   const [isFollowing, setIsFollowing] = useState(true);
   const [activeLine, setActiveLine] = useState(null);
-  const [stemSources, setStemSources] = useState(null); // pitch-shifted stand-ins, keyed by original src
-
-  // The stem player element is mounted by the sidebar but driven by the transport bar
-  const handlePlayerReady = useCallback((node) => setPlayer(node), []);
+  const [jumpToken, setJumpToken] = useState(0); // bumped when a bookmark asks for a jump
+  // The transport bar owns playback; the mixer needs the same engine
+  const handleEngineReady = useCallback((instance) => setEngine(instance), []);
   const [columnWidth, setColumnWidth] = useState(() => window.innerWidth < 768 ? 100 : 160);
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(5); // Speed from 1-10
@@ -51,6 +49,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [musicXMLFile, setMusicXMLFile] = useState(textData?.musicXML || '');
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
   const scrollContainerRef = useRef(null);
+  const lastJumpRef = useRef(0);
   const osmdContainerRef = useRef(null);
   const osmdInstanceRef = useRef(null);
   const audioPlayerRef = useRef(null);
@@ -311,7 +310,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   };
 
   const markLine = (lineIndex) => {
-    const time = player?.state?.currentTime;
+    const time = engine?.currentTime;
     if (typeof time !== 'number') return;
     // One mark per line: marking again re-times the line
     const others = bookmarks.filter(bookmark => bookmark.line !== lineIndex);
@@ -338,6 +337,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     persistBookmarks(bookmarks.filter(bookmark => bookmark.id !== id));
   };
 
+  const clearBookmarks = () => persistBookmarks([]);
+
+  /** Bring a line into view without waiting for the follow highlight */
+  const jumpToLine = (lineIndex) => {
+    setActiveLine(lineIndex);
+    setJumpToken(token => token + 1);
+  };
+
   // Clicking a line either stamps it (while marking) or jumps the audio to it
   const handleLyricClick = (event) => {
     const lineElement = event.target.closest?.('[data-line-index]');
@@ -351,7 +358,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     }
 
     const mark = bookmarks.find(bookmark => bookmark.line === lineIndex);
-    if (mark && player) seekTo(player, mark.time);
+    if (mark && engine) engine.seek(mark.time);
   };
 
   // Highlight the line that is playing and keep it on screen
@@ -363,20 +370,29 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       element.classList.remove('lyric-line-active');
     });
 
-    if (!isFollowing || activeLine === null) return;
+    // A jump comes from moving to a bookmark and always brings the line into
+    // view; otherwise the line only leads the scroll while Follow is on
+    const isJump = jumpToken !== lastJumpRef.current;
+    lastJumpRef.current = jumpToken;
+    if (activeLine === null || (!isFollowing && !isJump)) return;
 
     const element = container.querySelector(`[data-line-index="${activeLine}"]`);
     if (!element) return;
     element.classList.add('lyric-line-active');
 
-    // The lyrics run in columns, so following the song means scrolling sideways
+    // The lyrics run in columns, so following the song scrolls sideways, and
+    // only when the line is not already on screen
     const containerBox = container.getBoundingClientRect();
     const lineBox = element.getBoundingClientRect();
     const margin = 48;
-    if (lineBox.left < containerBox.left + margin || lineBox.right > containerBox.right - margin) {
-      container.scrollBy({ left: lineBox.left - containerBox.left - margin, behavior: 'smooth' });
+    const isOffScreen = lineBox.left < containerBox.left + margin || lineBox.right > containerBox.right - margin;
+    if (isOffScreen) {
+      // An absolute target, because a long smooth scroll gets cut short by the
+      // redraws happening while the song plays
+      const target = container.scrollLeft + (lineBox.left - containerBox.left) - margin;
+      container.scrollTo({ left: Math.max(0, target), behavior: isJump ? 'auto' : 'smooth' });
     }
-  }, [activeLine, isFollowing, processedText]);
+  }, [activeLine, isFollowing, jumpToken, processedText]);
 
   const handleStartPractising = () => {
     if (text.trim()) {
@@ -1257,13 +1273,11 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   isDarkMode={isDarkMode}
                   isVisible={isStemPlayerVisible}
                   onStemsUpdate={onTextDataUpdate}
-                  onPlayerReady={handlePlayerReady}
-                  stemSources={stemSources}
+                  engine={engine}
                 />
 
                 {/* Backing track transport: waveform, A-B loop and lyric bookmarks */}
                 <SongPlayer
-                  player={player}
                   stems={stems}
                   bookmarks={bookmarks}
                   isDarkMode={isDarkMode}
@@ -1273,10 +1287,12 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   onToggleFollowing={() => setIsFollowing(!isFollowing)}
                   onActiveLineChange={setActiveLine}
                   onDeleteBookmark={deleteBookmark}
+                  onClearBookmarks={clearBookmarks}
                   onAddBookmark={addBookmarkAt}
+                  onJumpToLine={jumpToLine}
                   isStemsPanelOpen={isStemPlayerVisible}
                   onToggleStemsPanel={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
-                  onPitchSources={setStemSources}
+                  onEngineReady={handleEngineReady}
                 />
 
                 {/* YouTube Video Container - Bottom of screen */}

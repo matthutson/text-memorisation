@@ -1,25 +1,26 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Badge, Box, Button, Flex, Progress, Text } from '@radix-ui/themes';
-import '../stemplayer/index.js';
+import React, { useEffect, useState } from 'react';
+import { Badge, Box, Button, Flex, IconButton, Progress, Slider, Text } from '@radix-ui/themes';
 import { supabase } from '../utils/supabase';
 import { updateText } from '../utils/storage';
 import { getMinutesLeft, splitIntoStems } from '../utils/stemSplit';
 
-const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUpdate, isVisible = true, onPlayerReady, stemSources }) => {
+const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisible = true, engine }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [bucketStatus, setBucketStatus] = useState('checking'); // 'checking', 'ready', 'error'
     const [bucketError, setBucketError] = useState(null);
     const [splitProgress, setSplitProgress] = useState(null); // { percent, message }
     const [splitError, setSplitError] = useState(null);
     const [minutesLeft, setMinutesLeft] = useState(null); // null until the API answers, and when it isn't configured
-    const playerRef = useRef(null);
+    const [levels, setLevels] = useState({}); // src -> { volume, muted }
 
-    // Hand the player element to the transport bar, which owns playback,
-    // looping and speed so the lyrics stay visible while you practise
-    const attachPlayer = useCallback((node) => {
-        playerRef.current = node;
-        if (onPlayerReady) onPlayerReady(node);
-    }, [onPlayerReady]);
+    const levelFor = (stem) => levels[stem.src] || { volume: stem.volume ?? 1, muted: !!stem.muted };
+
+    const setLevel = (index, stem, next) => {
+        setLevels(current => ({ ...current, [stem.src]: next }));
+        if (!engine) return;
+        engine.setStemVolume(index, next.volume);
+        engine.setStemMuted(index, next.muted);
+    };
 
     useEffect(() => {
         // Debug: Log textId to verify it's being passed correctly
@@ -322,48 +323,47 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
                 </Flex>
 
                 {/* Mixer */}
-                <Box style={{ flex: 1, minWidth: 260, width: '100%' }}>
+                <Box style={{ flex: 1, minWidth: 240, width: '100%' }}>
                     <Text as="div" size="1" weight="bold" color="gray" mb="2" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                         Mix
                     </Text>
-                    <stemplayer-js
-                        ref={attachPlayer}
-                        class="block w-full"
-                        style={{
-                            '--stemplayer-js-background-color': 'transparent',
-                            '--stemplayer-js-color': isDarkMode ? '#e5e7eb' : '#111827',
-                            '--stemplayer-js-brand-color': '#3b82f6',
-                            '--stemplayer-js-row-height': '3rem',
-                            '--stemplayer-js-font-size': '14px',
-                            '--stemplayer-js-row-controls-background-color': 'transparent',
-                            '--stemplayer-js-row-end-background-color': 'transparent'
-                        }}
-                    >
-                        <stemplayer-js-controls label="All tracks"></stemplayer-js-controls>
-                        {stems.map((stem, index) => (
-                            <stemplayer-js-stem
-                                key={index}
-                                label={stem.label}
-                                src={stemSources?.[stem.src] || stem.src}
-                                waveform={stem.src}
-                                volume={stem.volume}
-                                muted={stem.muted}
-                                waveColor={stem.color}
-                                waveProgressColor={isDarkMode ? '#60a5fa' : '#2563eb'}
-                                style={{
-                                    '--stemplayer-js-stem-color': stem.color,
-                                    '--stemplayer-js-waveform-color': stem.color,
-                                    '--stemplayer-js-waveform-progress-color': isDarkMode ? '#60a5fa' : '#2563eb'
-                                }}
-                            ></stemplayer-js-stem>
-                        ))}
-                    </stemplayer-js>
 
                     {stems.length === 0 && !isUploading && (
                         <Text as="div" size="1" color="gray">
                             No tracks yet. Add an audio file or split a song into stems.
                         </Text>
                     )}
+
+                    <Flex direction="column" gap="2">
+                        {stems.map((stem, index) => {
+                            const level = levelFor(stem);
+                            return (
+                                <Flex key={stem.src} align="center" gap="3">
+                                    <IconButton
+                                        size="1"
+                                        variant={level.muted ? 'solid' : 'soft'}
+                                        color={level.muted ? 'red' : 'gray'}
+                                        onClick={() => setLevel(index, stem, { ...level, muted: !level.muted })}
+                                        title={level.muted ? 'Unmute' : 'Mute'}
+                                    >
+                                        {level.muted ? 'M' : '♪'}
+                                    </IconButton>
+                                    <Text size="2" style={{ width: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        {stem.label}
+                                    </Text>
+                                    <Box style={{ flex: 1, maxWidth: 220 }}>
+                                        <Slider
+                                            size="1"
+                                            value={[Math.round(level.volume * 100)]}
+                                            onValueChange={([value]) => setLevel(index, stem, { ...level, volume: value / 100 })}
+                                            min={0}
+                                            max={100}
+                                        />
+                                    </Box>
+                                </Flex>
+                            );
+                        })}
+                    </Flex>
                 </Box>
             </Flex>
         </Box>
