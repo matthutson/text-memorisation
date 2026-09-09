@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import SongAudio from '../utils/songAudio';
 import { peaksFromBuffer } from '../utils/peaks';
 import { bookmarkAt, nextBookmark, previousBookmark } from '../utils/bookmarks';
+import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceSettings';
 
 const waveformHeight = () => (window.innerWidth < 768 ? 64 : 96);
 
@@ -50,6 +51,7 @@ const Glyph = ({ name, size = 16 }) => (
  * bookmarks that tie moments in the song to lines of the lyrics.
  */
 export default function SongPlayer({
+  songId,
   stems = [],
   bookmarks = [],
   isDarkMode,
@@ -66,17 +68,20 @@ export default function SongPlayer({
   onToggleStemsPanel,
   onEngineReady
 }) {
+  // How this song was left last time: its speed, key, loop and zoom
+  const saved = useMemo(() => loadSettings(songId), [songId]);
+
   const [engineState, setEngineState] = useState('idle'); // idle | loading | ready | error
   const [duration, setDuration] = useState(0);
   const [displayTime, setDisplayTime] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [peaks, setPeaks] = useState(null);
-  const [loopA, setLoopA] = useState(null);
-  const [loopB, setLoopB] = useState(null);
-  const [isLoopOn, setIsLoopOn] = useState(false);
-  const [speed, setSpeed] = useState(1);
-  const [pitch, setPitch] = useState(0);
-  const [zoom, setZoom] = useState(1);
+  const [loopA, setLoopA] = useState(() => numberOr(saved.loopA, null, { min: 0 }));
+  const [loopB, setLoopB] = useState(() => numberOr(saved.loopB, null, { min: 0 }));
+  const [isLoopOn, setIsLoopOn] = useState(() => boolOr(saved.isLoopOn, false));
+  const [speed, setSpeed] = useState(() => numberOr(saved.speed, 1, { min: 0.25, max: 2 }));
+  const [pitch, setPitch] = useState(() => numberOr(saved.pitch, 0, { min: -12, max: 12 }));
+  const [zoom, setZoom] = useState(() => numberOr(saved.zoom, 1, { min: 1, max: 32 }));
   const [dragging, setDragging] = useState(null);
   const [height] = useState(waveformHeight);
 
@@ -154,14 +159,21 @@ export default function SongPlayer({
   }, [isPlaying]);
 
   // ---- Settings that the engine owns -------------------------------------
-  useEffect(() => { engineRef.current?.setTempo(speed); }, [speed]);
-  useEffect(() => { engineRef.current?.setSemitones(pitch); }, [pitch]);
+  // engineState is a dependency so a remembered speed or key is applied again
+  // once the tracks have finished loading, not just when the control is used.
+  useEffect(() => { engineRef.current?.setTempo(speed); }, [speed, engineState]);
+  useEffect(() => { engineRef.current?.setSemitones(pitch); }, [pitch, engineState]);
   useEffect(() => {
     const engine = engineRef.current;
     if (!engine) return;
     if (isLoopOn && loopA !== null && loopB !== null && loopB > loopA) engine.setLoop(loopA, loopB);
     else engine.setLoop(null, null);
-  }, [isLoopOn, loopA, loopB]);
+  }, [isLoopOn, loopA, loopB, engineState]);
+
+  // Keep the song's settings for next time
+  useEffect(() => {
+    saveSettings(songId, { speed, pitch, zoom, loopA, loopB, isLoopOn });
+  }, [songId, speed, pitch, zoom, loopA, loopB, isLoopOn]);
 
   // ---- Which lyric line is playing ---------------------------------------
   useEffect(() => {

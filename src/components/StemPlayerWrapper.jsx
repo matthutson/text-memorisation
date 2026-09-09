@@ -3,6 +3,7 @@ import { Badge, Box, Button, Flex, IconButton, Progress, Slider, Text } from '@r
 import { supabase } from '../utils/supabase';
 import { getJobForText, updateText } from '../utils/storage';
 import { getMinutesLeft, splitIntoStems } from '../utils/stemSplit';
+import { loadSettings, saveSettings } from '../utils/practiceSettings';
 
 const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisible = true, engine }) => {
     const [isUploading, setIsUploading] = useState(false);
@@ -11,17 +12,32 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisi
     const [splitProgress, setSplitProgress] = useState(null); // { percent, message }
     const [splitError, setSplitError] = useState(null);
     const [minutesLeft, setMinutesLeft] = useState(null); // null until the API answers, and when it isn't configured
-    const [levels, setLevels] = useState({}); // src -> { volume, muted }
+    // src -> { volume, muted }, remembered from the last time this song was open
+    const [levels, setLevels] = useState(() => loadSettings(textId).mix || {});
     const [job, setJob] = useState(null); // the backing track fetch, when one is running
 
     const levelFor = (stem) => levels[stem.src] || { volume: stem.volume ?? 1, muted: !!stem.muted };
 
     const setLevel = (index, stem, next) => {
-        setLevels(current => ({ ...current, [stem.src]: next }));
+        const merged = { ...levels, [stem.src]: next };
+        setLevels(merged);
+        saveSettings(textId, { mix: merged });
         if (!engine) return;
         engine.setStemVolume(index, next.volume);
         engine.setStemMuted(index, next.muted);
     };
+
+    // The engine arrives after the tracks have loaded, so the remembered mix is
+    // pushed into it here rather than when the sliders were last moved.
+    useEffect(() => {
+        if (!engine) return;
+        stems.forEach((stem, index) => {
+            const level = levels[stem.src];
+            if (!level) return;
+            engine.setStemVolume(index, level.volume);
+            engine.setStemMuted(index, level.muted);
+        });
+    }, [engine, stems, levels]);
 
     useEffect(() => {
         // Debug: Log textId to verify it's being passed correctly

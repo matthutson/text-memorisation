@@ -6,8 +6,13 @@ import { updateText } from '../utils/storage';
 import StemPlayerWrapper from './StemPlayerWrapper';
 import SongPlayer from './SongPlayer';
 import { loadBookmarks, saveBookmarks, sortBookmarks } from '../utils/bookmarks';
+import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceSettings';
 
 export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
+  // How this song was left last time it was practised
+  const songId = textData?.id;
+  const saved = useMemo(() => loadSettings(songId), [songId]);
+
   const [text, setText] = useState(initialText);
   const [stems, setStems] = useState(textData?.stems || []);
 
@@ -25,27 +30,29 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [isStemPlayerVisible, setIsStemPlayerVisible] = useState(false);
   const [isControlsExpanded, setIsControlsExpanded] = useState(false);
   const [isYouTubeVisible, setIsYouTubeVisible] = useState(false);
-  const [visibility, setVisibility] = useState(100);
+  const [visibility, setVisibility] = useState(() => numberOr(saved.visibility, 100, { min: 0, max: 100 }));
   const [isEditing, setIsEditing] = useState(!initialText);
-  const [fontSize, setFontSize] = useState(() => window.innerWidth < 768 ? 10 : 12);
-  const [anchorWords, setAnchorWords] = useState(2); // Words kept visible at the start of every line
+  const [fontSize, setFontSize] = useState(() => numberOr(saved.fontSize, window.innerWidth < 768 ? 10 : 12, { min: 8, max: 40 }));
+  // Words kept visible at the start of every line
+  const [anchorWords, setAnchorWords] = useState(() => numberOr(saved.anchorWords, 2, { min: 0, max: 5 }));
   const [engine, setEngine] = useState(null); // the audio engine, owned by the transport bar
   const [bookmarks, setBookmarks] = useState(() => loadBookmarks(textData));
   const [isMarkMode, setIsMarkMode] = useState(false);
-  const [isFollowing, setIsFollowing] = useState(true);
+  const [isFollowing, setIsFollowing] = useState(() => boolOr(saved.isFollowing, true));
   const [activeLine, setActiveLine] = useState(null);
   const [jumpToken, setJumpToken] = useState(0); // bumped when a bookmark asks for a jump
   // The transport bar owns playback; the mixer needs the same engine
   const handleEngineReady = useCallback((instance) => setEngine(instance), []);
-  const [columnWidth, setColumnWidth] = useState(() => window.innerWidth < 768 ? 100 : 160);
-  const [autoFit, setAutoFit] = useState(true); // size the text to fill the window
+  const [columnWidth, setColumnWidth] = useState(() => numberOr(saved.columnWidth, window.innerWidth < 768 ? 100 : 160, { min: 60, max: 2000 }));
+  // Size the text to fill the window. A song sized by hand keeps that size.
+  const [autoFit, setAutoFit] = useState(() => boolOr(saved.autoFit, true));
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
-  const [autoScrollSpeed, setAutoScrollSpeed] = useState(5); // Speed from 1-10
+  const [autoScrollSpeed, setAutoScrollSpeed] = useState(() => numberOr(saved.autoScrollSpeed, 5, { min: 1, max: 10 })); // Speed from 1-10
   const [countdownProgress, setCountdownProgress] = useState(100);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [isMetronomeActive, setIsMetronomeActive] = useState(false);
-  const [metronomeBPM, setMetronomeBPM] = useState(120);
-  const [metronomeMeter, setMetronomeMeter] = useState(4);
+  const [metronomeBPM, setMetronomeBPM] = useState(() => numberOr(saved.metronomeBPM, 120, { min: 30, max: 300 }));
+  const [metronomeMeter, setMetronomeMeter] = useState(() => numberOr(saved.metronomeMeter, 4, { min: 1, max: 12 }));
   const [currentTab, setCurrentTab] = useState('text'); // 'text' or 'music'
   const [musicXMLFile, setMusicXMLFile] = useState(textData?.musicXML || '');
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
@@ -554,6 +561,23 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       window.removeEventListener('resize', onResize);
     };
   }, [autoFit, isEditing, currentTab, text, fitToWindow]);
+
+  // Keep the way this song is set up for next time. The sizes only matter when
+  // the fitter is off, but they cost nothing to carry.
+  useEffect(() => {
+    saveSettings(songId, {
+      visibility,
+      anchorWords,
+      isFollowing,
+      autoFit,
+      fontSize,
+      columnWidth,
+      autoScrollSpeed,
+      metronomeBPM,
+      metronomeMeter
+    });
+  }, [songId, visibility, anchorWords, isFollowing, autoFit, fontSize, columnWidth,
+      autoScrollSpeed, metronomeBPM, metronomeMeter]);
 
   const handleStartPractising = () => {
     if (text.trim()) {
@@ -1455,6 +1479,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
                 {/* Backing track transport: waveform, A-B loop and lyric bookmarks */}
                 <SongPlayer
+                  songId={textData?.id}
                   stems={stems}
                   bookmarks={bookmarks}
                   isDarkMode={isDarkMode}
