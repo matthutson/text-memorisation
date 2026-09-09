@@ -174,7 +174,7 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
         soundsliceUrl: draft.soundsliceUrl.trim(),
         content: draft.content
       });
-      await setTextTags(editingSong.id, draft.tagIds);
+      await withTagErrors(() => setTextTags(editingSong.id, draft.tagIds));
     } else {
       await createText({
         title: draft.title.trim(),
@@ -213,23 +213,38 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
     const current = song.tagIds || [];
     const next = current.includes(tagId) ? current.filter(id => id !== tagId) : [...current, tagId];
     setSongs(list => list.map(item => item.id === song.id ? { ...item, tagIds: next } : item));
-    await setTextTags(song.id, next);
+    await withTagErrors(() => setTextTags(song.id, next));
   };
 
   // ---- Tags ----
 
+  // Tag writes need the tags migration; say so plainly rather than failing quietly
+  const withTagErrors = async (action) => {
+    try {
+      await action();
+    } catch (error) {
+      console.error('[HomePage] Tag update failed:', error);
+      alert(
+        'Could not save the tag. If this database has not had the tags migration run yet, ' +
+        'apply the tags section of supabase-schema.sql and try again.'
+      );
+    }
+  };
+
   const saveTag = async () => {
     const name = tagDialog?.name.trim();
     if (!name) return;
-    if (tagDialog.mode === 'edit') await updateTag(tagDialog.id, name);
-    else await createTag(name);
+    await withTagErrors(async () => {
+      if (tagDialog.mode === 'edit') await updateTag(tagDialog.id, name);
+      else await createTag(name);
+    });
     setTagDialog(null);
     await loadData();
   };
 
   const removeTag = async (tag) => {
     if (!confirm(`Delete the tag "${tag.name}"? The songs themselves are kept.`)) return;
-    await deleteTag(tag.id);
+    await withTagErrors(() => deleteTag(tag.id));
     if (selectedTagId === tag.id) onSelectTag('all');
     await loadData();
   };
