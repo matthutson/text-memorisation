@@ -164,6 +164,7 @@ const mapText = (text) => ({
   imageData: text.image_data,
   musicXML: text.music_xml,
   stems: text.stems,
+  bookmarks: text.bookmarks,
   ultimateGuitarUrl: text.ultimate_guitar_url,
   soundsliceUrl: text.soundslice_url,
   folderId: text.folder_id,
@@ -279,6 +280,7 @@ export const updateText = async (id, updates) => {
   if (updates.imageData !== undefined) dbUpdates.image_data = updates.imageData;
   if (updates.musicXML !== undefined) dbUpdates.music_xml = updates.musicXML;
   if (updates.stems !== undefined) dbUpdates.stems = updates.stems;
+  if (updates.bookmarks !== undefined) dbUpdates.bookmarks = updates.bookmarks;
   if (updates.ultimateGuitarUrl !== undefined) dbUpdates.ultimate_guitar_url = updates.ultimateGuitarUrl;
   if (updates.soundsliceUrl !== undefined) dbUpdates.soundslice_url = updates.soundsliceUrl;
   if (updates.folderId !== undefined) dbUpdates.folder_id = updates.folderId;

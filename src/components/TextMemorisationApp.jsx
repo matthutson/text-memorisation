@@ -1,10 +1,13 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { Dropzone } from 'dropzone';
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import AudioPlayer from 'osmd-audio-player';
 import { Flex, Button, IconButton, Slider as RadixSlider, Separator, Text, Tooltip } from '@radix-ui/themes';
 import { updateText } from '../utils/storage';
 import StemPlayerWrapper from './StemPlayerWrapper';
+import SongPlayer from './SongPlayer';
+import { loadBookmarks, saveBookmarks, sortBookmarks } from '../utils/bookmarks';
+import { seekTo } from '../utils/playerControl';
 
 export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
   const [text, setText] = useState(initialText);
@@ -28,6 +31,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [isEditing, setIsEditing] = useState(!initialText);
   const [fontSize, setFontSize] = useState(() => window.innerWidth < 768 ? 10 : 12);
   const [anchorWords, setAnchorWords] = useState(2); // Words kept visible at the start of every line
+  const [player, setPlayer] = useState(null); // the <stemplayer-js> element
+  const [bookmarks, setBookmarks] = useState(() => loadBookmarks(textData));
+  const [isMarkMode, setIsMarkMode] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(true);
+  const [activeLine, setActiveLine] = useState(null);
+
+  // The stem player element is mounted by the sidebar but driven by the transport bar
+  const handlePlayerReady = useCallback((node) => setPlayer(node), []);
   const [columnWidth, setColumnWidth] = useState(() => window.innerWidth < 768 ? 100 : 160);
   const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(5); // Speed from 1-10
@@ -136,10 +147,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         const parser = new DOMParser();
         const doc = parser.parseFromString(text, 'text/html');
 
-        // Detect and mark chord lines and section markers in HTML content
+        // Detect and mark chord lines and section markers in HTML content.
+        // Each block also gets a stable index so bookmarks can point at a line.
         const blocks = doc.body.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6');
-        blocks.forEach(block => {
+        const lineTexts = [];
+        blocks.forEach((block, index) => {
           const textContent = block.textContent.trim();
+          block.setAttribute('data-line-index', String(index));
+          lineTexts[index] = textContent;
           if (!textContent) return;
           if (isChordLine(textContent)) {
             block.setAttribute('data-chord-line', 'true');
@@ -216,7 +231,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
           node.textContent = newContent;
         }
 
-        return { isHtml: true, content: doc.body.innerHTML };
+        return { isHtml: true, content: doc.body.innerHTML, lineTexts };
       } catch (e) {
         console.error('Error parsing HTML:', e);
         // Fallback to plain text processing if parsing fails
@@ -248,6 +263,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       0
     );
 
+    const lineTexts = lines.map(line => line.trim());
+
     // Distribute visible characters uniformly across the hideable ones
     const visiblePositions = buildVisibleSet(hideableCount, visibility);
 
@@ -263,14 +280,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       if (meta.type === 'chord') {
         // Keep chord lines fully visible with special styling
         result.push(
-          <div key={lineIdx} style={{ color: '#3b82f6', fontWeight: '400', lineHeight: '1.1', marginBottom: 0, paddingBottom: 0 }}>
+          <div key={lineIdx} data-line-index={lineIdx} style={{ color: '#3b82f6', fontWeight: '400', lineHeight: '1.1', marginBottom: 0, paddingBottom: 0 }}>
             {line || ' '}
           </div>
         );
       } else if (meta.type === 'section') {
         // Style section markers
         result.push(
-          <div key={lineIdx} style={{ fontWeight: '500', marginTop: '1em', marginBottom: '0.5em' }}>
+          <div key={lineIdx} data-line-index={lineIdx} style={{ fontWeight: '500', marginTop: '1em', marginBottom: '0.5em' }}>
             {line}
           </div>
         );
@@ -285,12 +302,82 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
             hideableIndex++;
           }
         }
-        result.push(<div key={lineIdx}>{lineContent || ' '}</div>);
+        result.push(<div key={lineIdx} data-line-index={lineIdx}>{lineContent || ' '}</div>);
       }
     }
 
-    return { isHtml: false, content: result };
+    return { isHtml: false, content: result, lineTexts };
   }, [text, visibility, anchorWords]);
+
+  // ---- Bookmarks: a moment in the audio tied to a line of the lyrics ------
+
+  const persistBookmarks = (next) => {
+    const sorted = sortBookmarks(next);
+    setBookmarks(sorted);
+    if (textData?.id) saveBookmarks(textData.id, sorted);
+  };
+
+  const labelForLine = (lineIndex) => {
+    const source = processedText.lineTexts?.[lineIndex] || '';
+    return source.split(/\s+/).filter(Boolean).slice(0, 3).join(' ');
+  };
+
+  const markLine = (lineIndex) => {
+    const time = player?.state?.currentTime;
+    if (typeof time !== 'number') return;
+    // One mark per line: marking again re-times the line
+    const others = bookmarks.filter(bookmark => bookmark.line !== lineIndex);
+    persistBookmarks([...others, {
+      id: `bm-${Date.now()}-${lineIndex}`,
+      time,
+      line: lineIndex,
+      label: labelForLine(lineIndex)
+    }]);
+  };
+
+  const deleteBookmark = (id) => {
+    persistBookmarks(bookmarks.filter(bookmark => bookmark.id !== id));
+  };
+
+  // Clicking a line either stamps it (while marking) or jumps the audio to it
+  const handleLyricClick = (event) => {
+    const lineElement = event.target.closest?.('[data-line-index]');
+    if (!lineElement) return;
+    const lineIndex = Number(lineElement.dataset.lineIndex);
+    if (Number.isNaN(lineIndex)) return;
+
+    if (isMarkMode) {
+      markLine(lineIndex);
+      return;
+    }
+
+    const mark = bookmarks.find(bookmark => bookmark.line === lineIndex);
+    if (mark && player) seekTo(player, mark.time);
+  };
+
+  // Highlight the line that is playing and keep it on screen
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    container.querySelectorAll('.lyric-line-active').forEach(element => {
+      element.classList.remove('lyric-line-active');
+    });
+
+    if (!isFollowing || activeLine === null) return;
+
+    const element = container.querySelector(`[data-line-index="${activeLine}"]`);
+    if (!element) return;
+    element.classList.add('lyric-line-active');
+
+    // The lyrics run in columns, so following the song means scrolling sideways
+    const containerBox = container.getBoundingClientRect();
+    const lineBox = element.getBoundingClientRect();
+    const margin = 48;
+    if (lineBox.left < containerBox.left + margin || lineBox.right > containerBox.right - margin) {
+      container.scrollBy({ left: lineBox.left - containerBox.left - margin, behavior: 'smooth' });
+    }
+  }, [activeLine, isFollowing, processedText]);
 
   const handleStartPractising = () => {
     if (text.trim()) {
@@ -617,7 +704,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (countdownRef.current) cancelAnimationFrame(countdownRef.current);
 
-    if (!isAutoAdvancing) {
+    const audioIsDriving = isFollowing && bookmarks.length > 0;
+    if (!isAutoAdvancing || audioIsDriving) {
       setCountdownProgress(100);
       return;
     }
@@ -664,7 +752,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if (countdownRef.current) cancelAnimationFrame(countdownRef.current);
     };
-  }, [isAutoAdvancing, autoScrollSpeed, columnWidth, scrollPosition]);
+  }, [isAutoAdvancing, autoScrollSpeed, columnWidth, scrollPosition, isFollowing, bookmarks.length]);
 
 
   return (
@@ -996,6 +1084,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 isDarkMode={isDarkMode}
                 isVisible={isStemPlayerVisible}
                 onStemsUpdate={onTextDataUpdate}
+                onPlayerReady={handlePlayerReady}
               />
 
               {/* Main Content */}
@@ -1009,12 +1098,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   {currentTab === 'text' && (
                     <div
                       ref={scrollContainerRef}
+                      onClick={handleLyricClick}
                       className={`h-full overflow-x-auto overflow-y-hidden ${isDarkMode ? 'dark-scrollbar' : ''}`}
                       style={{
                         WebkitOverflowScrolling: 'touch',
                         backgroundColor: isDarkMode ? '#111827' : '#ffffff',
                         padding: '2rem',
-                        paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '20vh' : '52vh') : '5rem') : '2rem'
+                        paddingBottom: '2rem',
+                        cursor: isMarkMode ? 'crosshair' : 'default'
                       }}>
                       <div
                         className={`transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}
@@ -1203,7 +1294,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   {currentTab === 'music' && (
                     <div className="flex-1 overflow-y-auto" style={{
                       backgroundColor: isDarkMode ? '#111827' : '#ffffff',
-                      paddingBottom: textData?.youtubeUrl ? (isYouTubeVisible ? (window.innerWidth >= 768 ? '18vh' : '52vh') : '4rem') : '0'
+                      paddingBottom: 0
                     }}>
                       <div className={`max-w-7xl mx-auto transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}>
                         {/* Simple Playback Controls - at the top below nav */}
@@ -1328,17 +1419,24 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   )}
                 </div>
 
+                {/* Backing track transport: waveform, A-B loop and lyric bookmarks */}
+                <SongPlayer
+                  player={player}
+                  stems={stems}
+                  bookmarks={bookmarks}
+                  isDarkMode={isDarkMode}
+                  isMarkMode={isMarkMode}
+                  onToggleMarkMode={() => setIsMarkMode(!isMarkMode)}
+                  isFollowing={isFollowing}
+                  onToggleFollowing={() => setIsFollowing(!isFollowing)}
+                  onActiveLineChange={setActiveLine}
+                  onDeleteBookmark={deleteBookmark}
+                />
+
                 {/* YouTube Video Container - Bottom of screen */}
                 {textData?.youtubeUrl && (
                   <div className={`transition-all duration-300 border-t flex-shrink-0 ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'
                     } ${isYouTubeVisible ? 'h-[50vh] md:h-[12.5vh]' : 'h-12'}`}
-                    style={{
-                      position: 'fixed',
-                      bottom: 0,
-                      left: 0,
-                      right: 0,
-                      zIndex: 30
-                    }}
                   >
                     {!isYouTubeVisible ? (
                       <div className="h-full flex items-center justify-center">

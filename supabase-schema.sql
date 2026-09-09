@@ -41,3 +41,12 @@ CREATE POLICY "Enable all access for folders" ON folders
 
 CREATE POLICY "Enable all access for texts" ON texts
   FOR ALL USING (true) WITH CHECK (true);
+
+-- ---------------------------------------------------------------------------
+-- Migration: lyric bookmarks (run on existing installations)
+--
+-- Each bookmark ties a moment in the backing track to a line of the lyrics:
+--   [{ "id": "bm-1699...", "time": 12.480, "line": 7, "label": "Country roads" }]
+-- Until this column exists the app keeps bookmarks in the browser only.
+-- ---------------------------------------------------------------------------
+ALTER TABLE texts ADD COLUMN IF NOT EXISTS bookmarks JSONB DEFAULT '[]'::jsonb;

@@ -1,19 +1,20 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import '../stemplayer/index.js';
 import { supabase } from '../utils/supabase';
 import { updateText } from '../utils/storage';
 
-const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUpdate, isVisible = true }) => {
-    const [playbackRate, setPlaybackRate] = useState(1);
+const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUpdate, isVisible = true, onPlayerReady }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [bucketStatus, setBucketStatus] = useState('checking'); // 'checking', 'ready', 'error'
     const [bucketError, setBucketError] = useState(null);
-    const [loopPointA, setLoopPointA] = useState(null); // Start of loop section (in seconds)
-    const [loopPointB, setLoopPointB] = useState(null); // End of loop section (in seconds)
-    const [isABLoopEnabled, setIsABLoopEnabled] = useState(false);
-    const [currentTime, setCurrentTime] = useState(0); // Track current playback time
     const playerRef = useRef(null);
-    const abLoopAppliedRef = useRef(false);
+
+    // Hand the player element to the transport bar, which owns playback,
+    // looping and speed so the lyrics stay visible while you practise
+    const attachPlayer = useCallback((node) => {
+        playerRef.current = node;
+        if (onPlayerReady) onPlayerReady(node);
+    }, [onPlayerReady]);
 
     useEffect(() => {
         // Debug: Log textId to verify it's being passed correctly
@@ -61,74 +62,6 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
         };
         checkBucket();
     }, []);
-
-    useEffect(() => {
-        // Update playback rate on stems whenever it changes or stems change
-        const player = playerRef.current;
-        if (player) {
-            // We need to wait a bit for the custom elements to upgrade/render if they are new
-            setTimeout(() => {
-                const stemElements = player.querySelectorAll('stemplayer-js-stem');
-                stemElements.forEach(stem => {
-                    stem.playbackRate = playbackRate;
-                });
-            }, 100);
-        }
-    }, [playbackRate, stems]);
-
-    // Listen to player timeupdate events
-    useEffect(() => {
-        const player = playerRef.current;
-        if (!player) return;
-
-        const handleTimeUpdate = (event) => {
-            const { t } = event.detail;
-            setCurrentTime(t);
-        };
-
-        player.addEventListener('timeupdate', handleTimeUpdate);
-
-        return () => {
-            player.removeEventListener('timeupdate', handleTimeUpdate);
-        };
-    }, []);
-
-    // Apply the A-B loop to the player.
-    // Rather than polling timeupdate and seeking back to A (which reacts up
-    // to 250ms late and restarts the audio, causing an audible gap), we set
-    // the player's playback region (offset + duration) and enable looping:
-    // the audio then loops gaplessly, sample-accurately in the audio thread.
-    useEffect(() => {
-        const player = playerRef.current;
-        if (!player) return;
-
-        const hasABLoop =
-            isABLoopEnabled &&
-            loopPointA !== null &&
-            loopPointB !== null &&
-            loopPointB > loopPointA;
-
-        if (hasABLoop) {
-            const t = player.state?.currentTime;
-
-            player.offset = loopPointA;
-            player.duration = loopPointB - loopPointA;
-            player.loop = true;
-
-            // If playback is outside the loop region, jump to A so the clock
-            // and the natively-looping audio start the loop in sync
-            if (typeof t === 'number' && (t < loopPointA || t >= loopPointB)) {
-                player.currentTime = loopPointA;
-            }
-
-            abLoopAppliedRef.current = true;
-        } else if (abLoopAppliedRef.current) {
-            player.loop = false;
-            player.offset = 0;
-            player.duration = undefined; // revert to the full track duration
-            abLoopAppliedRef.current = false;
-        }
-    }, [isABLoopEnabled, loopPointA, loopPointB]);
 
     const handleFileUpload = async (event) => {
         const files = Array.from(event.target.files);
@@ -271,35 +204,6 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
         return colors[Math.floor(Math.random() * colors.length)];
     };
 
-    // A-B Loop handlers
-    const handleSetLoopPointA = () => {
-        setLoopPointA(currentTime);
-        console.log('[StemPlayerWrapper] Loop point A set to:', currentTime);
-    };
-
-    const handleSetLoopPointB = () => {
-        setLoopPointB(currentTime);
-        console.log('[StemPlayerWrapper] Loop point B set to:', currentTime);
-        // Auto-enable loop when B is set
-        if (loopPointA !== null) {
-            setIsABLoopEnabled(true);
-        }
-    };
-
-    const handleClearLoopPoints = () => {
-        setLoopPointA(null);
-        setLoopPointB(null);
-        setIsABLoopEnabled(false);
-        console.log('[StemPlayerWrapper] Loop points cleared');
-    };
-
-    const formatTime = (seconds) => {
-        if (seconds === null || seconds === undefined) return '--:--';
-        const mins = Math.floor(seconds / 60);
-        const secs = Math.floor(seconds % 60);
-        return `${mins}:${secs.toString().padStart(2, '0')}`;
-    };
-
     return (
         <div className={`flex flex-col h-full border-r w-full flex-shrink-0 transition-colors ${!isVisible ? 'hidden' : ''
             } ${isDarkMode ? 'bg-gray-900 text-white border-gray-800' : 'bg-gray-50 text-black border-gray-200'
@@ -356,96 +260,10 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
                     )}
                 </div>
 
-                <div className="mb-2">
-                    <div className="flex justify-between mb-2 items-center">
-                        <label className={`text-xs uppercase tracking-wider font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                            }`}>Speed</label>
-                        <span className={`text-xs font-mono ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                            }`}>{playbackRate}x</span>
-                    </div>
-                    <input
-                        type="range"
-                        min="0.5"
-                        max="2"
-                        step="0.1"
-                        value={playbackRate}
-                        onChange={(e) => setPlaybackRate(parseFloat(e.target.value))}
-                        className={`w-full h-1 rounded-lg appearance-none cursor-pointer ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'
-                            }`}
-                    />
-                    <style>{`
-                        input[type=range]::-webkit-slider-thumb {
-                            -webkit-appearance: none;
-                            height: 12px;
-                            width: 12px;
-                            border-radius: 50%;
-                            background: ${isDarkMode ? '#60a5fa' : '#2563eb'};
-                            cursor: pointer;
-                            margin-top: -4px;
-                        }
-                        input[type=range]::-webkit-slider-runnable-track {
-                            height: 4px;
-                            border-radius: 2px;
-                        }
-                    `}</style>
-                </div>
-
-                {/* A-B Loop Controls */}
-                {stems.length > 0 && (
-                    <div className="mb-4 pb-4 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}">
-                        <label className={`block text-xs uppercase tracking-wider mb-2 font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                            }`}>Section Loop (A-B)</label>
-
-                        <div className="grid grid-cols-2 gap-2 mb-2">
-                            <button
-                                onClick={handleSetLoopPointA}
-                                className={`py-2 px-3 text-xs font-medium uppercase tracking-wider transition-colors ${loopPointA !== null
-                                        ? (isDarkMode ? 'bg-blue-900/50 text-blue-300 border border-blue-700' : 'bg-blue-100 text-blue-700 border border-blue-300')
-                                        : (isDarkMode ? 'bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700' : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-300')
-                                    }`}
-                            >
-                                Set A: {formatTime(loopPointA)}
-                            </button>
-                            <button
-                                onClick={handleSetLoopPointB}
-                                disabled={loopPointA === null}
-                                className={`py-2 px-3 text-xs font-medium uppercase tracking-wider transition-colors ${loopPointB !== null
-                                        ? (isDarkMode ? 'bg-blue-900/50 text-blue-300 border border-blue-700' : 'bg-blue-100 text-blue-700 border border-blue-300')
-                                        : (isDarkMode ? 'bg-gray-800 text-gray-300 border border-gray-700 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed' : 'bg-gray-200 text-gray-700 border border-gray-300 hover:bg-gray-300 disabled:opacity-50 disabled:cursor-not-allowed')
-                                    }`}
-                            >
-                                Set B: {formatTime(loopPointB)}
-                            </button>
-                        </div>
-
-                        {loopPointA !== null && loopPointB !== null && (
-                            <div className="space-y-2">
-                                <div className={`flex items-center justify-between p-2 rounded text-xs ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-                                    <span className={isDarkMode ? 'text-gray-400' : 'text-gray-600'}>Loop enabled</span>
-                                    <button
-                                        onClick={() => setIsABLoopEnabled(!isABLoopEnabled)}
-                                        className={`px-3 py-1 rounded font-medium uppercase tracking-wider transition-colors ${isABLoopEnabled
-                                                ? (isDarkMode ? 'bg-green-700 text-white' : 'bg-green-600 text-white')
-                                                : (isDarkMode ? 'bg-gray-700 text-gray-300' : 'bg-gray-300 text-gray-700')
-                                            }`}
-                                    >
-                                        {isABLoopEnabled ? 'ON' : 'OFF'}
-                                    </button>
-                                </div>
-                                <button
-                                    onClick={handleClearLoopPoints}
-                                    className="w-full text-xs text-red-500 hover:text-red-600 underline transition-colors"
-                                >
-                                    Clear Loop Points
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                )}
             </div>
 
             <div className="flex-grow overflow-y-auto custom-scrollbar p-2">
-                <stemplayer-js ref={playerRef} class="block w-full">
+                <stemplayer-js ref={attachPlayer} class="block w-full">
                     <stemplayer-js-controls
                         label="Master"
                         style={{
