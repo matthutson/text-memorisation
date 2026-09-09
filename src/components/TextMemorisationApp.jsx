@@ -140,9 +140,12 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         const parser = new DOMParser();
         const doc = parser.parseFromString(text, 'text/html');
 
-        // Detect and mark chord lines and section markers in HTML content.
-        // Each block also gets a stable index so bookmarks can point at a line.
-        const blocks = doc.body.querySelectorAll('p, div, li, h1, h2, h3, h4, h5, h6');
+        // Only leaf blocks are lines. Quill wraps a pasted chord chart in a
+        // code-block container, and counting that wrapper as a line makes the
+        // whole song look like one enormous line to the fitter.
+        const blockSelector = 'p, div, li, h1, h2, h3, h4, h5, h6';
+        const blocks = Array.from(doc.body.querySelectorAll(blockSelector))
+          .filter(block => !block.querySelector(blockSelector));
         const lineTexts = [];
         blocks.forEach((block, index) => {
           const textContent = block.textContent.trim();
@@ -227,7 +230,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         // A chord line and the words under it are one unit: wrap them so a
         // column break can never land between them. A section heading takes
         // the line that follows it along too, so it is never left dangling.
-        const children = Array.from(doc.body.children);
+        // Grouping the leaves also flattens away any wrapper they sat in.
+        const children = blocks;
         const isChordBlock = (block) => block?.getAttribute('data-chord-line') === 'true';
         const isSectionBlock = (block) => block?.hasAttribute('data-always-visible');
 
@@ -255,7 +259,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
           wrapped.push(group);
           groupSizes.push(size);
         }
-        wrapped.forEach(group => doc.body.appendChild(group));
+        doc.body.replaceChildren(...wrapped);
 
         return { isHtml: true, content: doc.body.innerHTML, lineTexts, groupSizes };
       } catch (e) {
@@ -524,8 +528,13 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     textHost.style.fontSize = previousFont;
     columnHost.style.columnWidth = previousWidth;
 
-    // Songs too long for the window keep the smallest readable size and scroll
-    const chosen = best || { size: 8, width: Math.ceil(longestLineWidth(8)) + 4 };
+    // Songs too long for the window keep the smallest readable size and
+    // scroll, but never wider than the window itself
+    const available = container.clientWidth - 64;
+    const chosen = best || {
+      size: 8,
+      width: Math.min(Math.ceil(longestLineWidth(8)) + 4, Math.max(120, available))
+    };
     setFontSize(chosen.size);
     setColumnWidth(chosen.width);
   }, [longestLineWidth]);
