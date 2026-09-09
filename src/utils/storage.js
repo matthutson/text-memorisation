@@ -278,10 +278,11 @@ export const getTexts = async () => {
   return result;
 };
 
-export const getText = async (id) => {
+/** `refresh` skips the cache, for when something outside the app has changed */
+export const getText = async (id, { refresh = false } = {}) => {
   const cacheKey = `text_${id}`;
   const cached = getCache(cacheKey);
-  if (cached && !cached.isStale) return cached.data;
+  if (!refresh && cached && !cached.isStale) return cached.data;
 
   const { data, error } = await supabase
     .from('texts')

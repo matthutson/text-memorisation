@@ -77,18 +77,27 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisi
         let cancelled = false;
         let timer;
 
+        let wasRunning = false;
+
         const poll = async () => {
             const latest = await getJobForText(textId);
             if (cancelled) return;
             setJob(latest);
-            if (latest && (latest.status === 'queued' || latest.status === 'running')) {
+
+            const isRunning = latest?.status === 'queued' || latest?.status === 'running';
+            if (isRunning) {
+                wasRunning = true;
                 timer = setTimeout(poll, 8000);
+            } else if (wasRunning && latest?.status === 'done' && onStemsUpdate) {
+                // The stems landed while the song was open, so pick them up
+                wasRunning = false;
+                onStemsUpdate();
             }
         };
         poll();
 
         return () => { cancelled = true; clearTimeout(timer); };
-    }, [textId]);
+    }, [textId, onStemsUpdate]);
 
     const handleFileUpload = async (event) => {
         const files = Array.from(event.target.files);

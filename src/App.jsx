@@ -159,7 +159,8 @@ function App() {
   const refreshCurrentText = async () => {
     if (currentText?.id) {
       console.log('[App] Refreshing text data from database for:', currentText.id);
-      const updatedText = await getText(currentText.id);
+      // Skip the cache: the change came from the fetcher, not from this tab
+      const updatedText = await getText(currentText.id, { refresh: true });
       if (updatedText) {
         setCurrentText(updatedText);
       }
