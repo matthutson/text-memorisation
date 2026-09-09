@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Badge, Box, Button, Flex, Progress, Text } from '@radix-ui/themes';
 import '../stemplayer/index.js';
 import { supabase } from '../utils/supabase';
 import { updateText } from '../utils/storage';
 import { getMinutesLeft, splitIntoStems } from '../utils/stemSplit';
 
-const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUpdate, isVisible = true, onPlayerReady }) => {
+const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUpdate, isVisible = true, onPlayerReady, stemSources }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [bucketStatus, setBucketStatus] = useState('checking'); // 'checking', 'ready', 'error'
     const [bucketError, setBucketError] = useState(null);
@@ -243,165 +244,129 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
     };
 
     return (
-        <div className={`flex flex-col h-full border-r w-full flex-shrink-0 transition-colors ${!isVisible ? 'hidden' : ''
-            } ${isDarkMode ? 'bg-gray-900 text-white border-gray-800' : 'bg-gray-50 text-black border-gray-200'
-            }`}>
-            <div className={`p-4 border-b ${isDarkMode ? 'border-gray-800' : 'border-gray-200'}`}>
-                <h2 className="text-sm font-bold uppercase tracking-wider mb-4">Backing Tracks</h2>
-
-                {/* Storage Status Indicator - only show if stems exist and bucket isn't accessible */}
-                {bucketStatus === 'error' && bucketError && stems.length === 0 && (
-                    <div className={`mb-4 p-3 rounded-md text-xs ${isDarkMode ? 'bg-red-900/30 text-red-400 border border-red-800' : 'bg-red-50 text-red-700 border border-red-200'
-                        }`}>
-                        <div className="font-medium mb-1">⚠ Storage Not Configured</div>
-                        <div className="opacity-90">{bucketError}</div>
-                        <div className="mt-2 text-xs opacity-75">
-                            Go to <a href="https://quxjesuarzbqqoahogma.supabase.co/project/_/storage/buckets" target="_blank" rel="noopener noreferrer" className="underline">Supabase Dashboard</a> and verify the "stems" bucket exists.
-                        </div>
-                        <div className="mt-2 text-xs opacity-75">
-                            See <code className="font-mono bg-black/20 px-1 py-0.5 rounded">SUPABASE_SETUP.md</code> for setup instructions.
-                        </div>
-                    </div>
-                )}
-
-                <div className="mb-6">
-                    <label className={`block text-xs uppercase tracking-wider mb-2 font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                        }`}>Add Stems</label>
-
-                    <div className="relative">
-                        <input
-                            type="file"
-                            multiple
-                            accept="audio/*"
-                            onChange={handleFileUpload}
-                            disabled={isUploading}
-                            className={`block w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:uppercase file:tracking-wider cursor-pointer ${isDarkMode
-                                ? 'text-gray-300 file:bg-gray-800 file:text-white hover:file:bg-gray-700'
-                                : 'text-gray-600 file:bg-gray-200 file:text-black hover:file:bg-gray-300'
-                                } ${isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        />
-                        {isUploading && (
-                            <div className="absolute right-0 top-0 bottom-0 flex items-center pr-2">
-                                <div className="animate-spin h-4 w-4 border-2 border-blue-500 rounded-full border-t-transparent"></div>
-                            </div>
+        <Box
+            style={{
+                display: isVisible ? 'block' : 'none',
+                flexShrink: 0,
+                borderTop: '1px solid var(--gray-a5)',
+                background: 'var(--color-panel-solid)',
+                maxHeight: '45vh',
+                overflowY: 'auto'
+            }}
+        >
+            <Flex direction={{ initial: 'column', md: 'row' }} gap="5" p="4" align="start">
+                {/* Add existing stems */}
+                <Flex direction="column" gap="2" style={{ minWidth: 200 }}>
+                    <Text size="1" weight="bold" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Add tracks
+                    </Text>
+                    <Text size="1" color="gray">Audio files you already have.</Text>
+                    <Flex gap="2" align="center">
+                        <Button size="2" variant="soft" disabled={isUploading} asChild>
+                            <label style={{ cursor: 'pointer' }}>
+                                {isUploading ? 'Uploading…' : 'Choose files'}
+                                <input
+                                    type="file"
+                                    multiple
+                                    accept="audio/*"
+                                    onChange={handleFileUpload}
+                                    disabled={isUploading}
+                                    style={{ display: 'none' }}
+                                />
+                            </label>
+                        </Button>
+                        {stems.length > 0 && (
+                            <Button size="2" variant="ghost" color="red" onClick={handleClearStems} disabled={isUploading}>
+                                Remove all
+                            </Button>
                         )}
-                    </div>
+                    </Flex>
+                </Flex>
 
-                    {stems.length > 0 && (
-                        <button
-                            onClick={handleClearStems}
-                            disabled={isUploading}
-                            className="mt-3 text-xs text-red-500 hover:text-red-600 underline block transition-colors"
-                        >
-                            Clear All Stems
-                        </button>
-                    )}
-                </div>
-
-                {/* Split a full song into vocal and backing stems */}
-                <div className="mb-2">
-                    <div className="flex justify-between items-center mb-2">
-                        <label className={`text-xs uppercase tracking-wider font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                            }`}>Split a Song</label>
-                        <span className={`text-xs font-mono ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                {/* Split a song into stems */}
+                <Flex direction="column" gap="2" style={{ minWidth: 240 }}>
+                    <Flex align="center" gap="2">
+                        <Text size="1" weight="bold" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                            Split a song
+                        </Text>
+                        <Badge color={minutesLeft === null ? 'gray' : 'blue'} variant="soft" radius="full">
                             {minutesLeft === null ? 'Not set up' : `${Math.round(minutesLeft)} min left`}
-                        </span>
-                    </div>
-
-                    <p className={`text-xs mb-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
-                        Separates the vocal from the backing so you can practise against either.
-                    </p>
-
-                    <input
-                        type="file"
-                        accept="audio/*"
-                        onChange={handleSplitUpload}
-                        disabled={!!splitProgress || isUploading}
-                        className={`block w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:uppercase file:tracking-wider cursor-pointer ${isDarkMode
-                            ? 'text-gray-300 file:bg-gray-800 file:text-white hover:file:bg-gray-700'
-                            : 'text-gray-600 file:bg-gray-200 file:text-black hover:file:bg-gray-300'
-                            } ${splitProgress ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    />
+                        </Badge>
+                    </Flex>
+                    <Text size="1" color="gray">Separates the vocal from the backing.</Text>
+                    <Button size="2" variant="soft" disabled={!!splitProgress || isUploading} asChild>
+                        <label style={{ cursor: 'pointer' }}>
+                            {splitProgress ? 'Splitting…' : 'Choose a song'}
+                            <input
+                                type="file"
+                                accept="audio/*"
+                                onChange={handleSplitUpload}
+                                disabled={!!splitProgress || isUploading}
+                                style={{ display: 'none' }}
+                            />
+                        </label>
+                    </Button>
 
                     {splitProgress && (
-                        <div className="mt-3">
-                            <div className={`h-1 rounded overflow-hidden ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`}>
-                                <div
-                                    className="h-full bg-blue-500 transition-all"
-                                    style={{ width: `${splitProgress.percent}%` }}
-                                />
-                            </div>
-                            <div className={`mt-1 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                                {splitProgress.message}
-                            </div>
-                        </div>
+                        <Box>
+                            <Progress value={splitProgress.percent} size="1" />
+                            <Text as="div" size="1" color="gray" mt="1">{splitProgress.message}</Text>
+                        </Box>
                     )}
-
                     {splitError && (
-                        <div className={`mt-3 p-2 rounded text-xs ${isDarkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-700'
-                            }`}>
-                            {splitError}
-                        </div>
+                        <Text as="div" size="1" color="red">{splitError}</Text>
                     )}
-                </div>
+                    {bucketStatus === 'error' && bucketError && stems.length === 0 && (
+                        <Text as="div" size="1" color="red">{bucketError}</Text>
+                    )}
+                </Flex>
 
-            </div>
-
-            <div className="flex-grow overflow-y-auto custom-scrollbar p-2">
-                <stemplayer-js ref={attachPlayer} class="block w-full">
-                    <stemplayer-js-controls
-                        label="Master"
+                {/* Mixer */}
+                <Box style={{ flex: 1, minWidth: 260, width: '100%' }}>
+                    <Text as="div" size="1" weight="bold" color="gray" mb="2" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Mix
+                    </Text>
+                    <stemplayer-js
+                        ref={attachPlayer}
+                        class="block w-full"
                         style={{
-                            '--stemplayer-js-bg': 'transparent',
-                            '--stemplayer-js-text': isDarkMode ? '#fff' : '#000',
-                            '--stemplayer-js-secondary': isDarkMode ? '#4b5563' : '#d1d5db',
+                            '--stemplayer-js-background-color': 'transparent',
+                            '--stemplayer-js-color': isDarkMode ? '#e5e7eb' : '#111827',
+                            '--stemplayer-js-brand-color': '#3b82f6',
+                            '--stemplayer-js-row-height': '3rem',
+                            '--stemplayer-js-font-size': '14px',
+                            '--stemplayer-js-row-controls-background-color': 'transparent',
+                            '--stemplayer-js-row-end-background-color': 'transparent'
                         }}
-                    ></stemplayer-js-controls>
-                    {stems.map((stem, index) => (
-                        <stemplayer-js-stem
-                            key={index}
-                            label={stem.label}
-                            src={stem.src}
-                            waveform={stem.src}
-                            volume={stem.volume}
-                            muted={stem.muted}
-                            waveColor={stem.color}
-                            waveProgressColor={isDarkMode ? '#60a5fa' : '#2563eb'}
-                            style={{
-                                '--stemplayer-js-stem-color': stem.color,
-                                '--stemplayer-js-bg': 'transparent',
-                                '--stemplayer-js-text': isDarkMode ? '#fff' : '#000',
-                                '--stemplayer-js-waveform-color': stem.color,
-                                '--stemplayer-js-waveform-progress-color': isDarkMode ? '#60a5fa' : '#2563eb',
-                            }}
-                        ></stemplayer-js-stem>
-                    ))}
-                </stemplayer-js>
+                    >
+                        <stemplayer-js-controls label="All tracks"></stemplayer-js-controls>
+                        {stems.map((stem, index) => (
+                            <stemplayer-js-stem
+                                key={index}
+                                label={stem.label}
+                                src={stemSources?.[stem.src] || stem.src}
+                                waveform={stem.src}
+                                volume={stem.volume}
+                                muted={stem.muted}
+                                waveColor={stem.color}
+                                waveProgressColor={isDarkMode ? '#60a5fa' : '#2563eb'}
+                                style={{
+                                    '--stemplayer-js-stem-color': stem.color,
+                                    '--stemplayer-js-waveform-color': stem.color,
+                                    '--stemplayer-js-waveform-progress-color': isDarkMode ? '#60a5fa' : '#2563eb'
+                                }}
+                            ></stemplayer-js-stem>
+                        ))}
+                    </stemplayer-js>
 
-                {stems.length === 0 && !isUploading && (
-                    <div className={`p-8 text-center text-sm ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
-                        }`}>
-                        <p>No backing tracks loaded.</p>
-                        <p className="mt-1 text-xs opacity-75">Upload audio files to start.</p>
-                    </div>
-                )}
-            </div>
-            <style>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: transparent; 
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: ${isDarkMode ? '#374151' : '#d1d5db'}; 
-          border-radius: 3px;
-        }
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: ${isDarkMode ? '#4b5563' : '#9ca3af'}; 
-        }
-      `}</style>
-        </div>
+                    {stems.length === 0 && !isUploading && (
+                        <Text as="div" size="1" color="gray">
+                            No tracks yet. Add an audio file or split a song into stems.
+                        </Text>
+                    )}
+                </Box>
+            </Flex>
+        </Box>
     );
 };
 

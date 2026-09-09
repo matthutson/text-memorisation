@@ -1,850 +1,668 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Badge,
+  Box,
+  Button,
+  Card,
+  Dialog,
+  DropdownMenu,
+  Flex,
+  Grid,
+  Heading,
+  IconButton,
+  Select,
+  Separator,
+  Text,
+  TextField,
+  Tooltip
+} from '@radix-ui/themes';
 import {
   getTexts,
   createText,
   updateText,
   deleteText,
-  getFolders,
-  createFolder,
-  updateFolder,
-  deleteFolder,
-  getCachedFolders,
+  setTextTags,
+  getTags,
+  createTag,
+  updateTag,
+  deleteTag,
+  getCachedTags,
   getCachedTexts
 } from '../utils/storage';
 import QuillEditor from './QuillEditor';
-import { Dialog, Button, Flex, Text, TextField, IconButton, Tooltip, Select } from '@radix-ui/themes';
 
-export default function HomePage({ onPracticeText, selectedFolderId = 'all', onSelectFolder, isDarkMode, onToggleDarkMode }) {
-  const [folders, setFolders] = useState(() => getCachedFolders() || []);
-  const [allTexts, setAllTexts] = useState(() => {
-    const cached = getCachedTexts();
-    return cached ? cached.sort((a, b) => b.createdAt - a.createdAt) : [];
-  });
-  const [showNewTextModal, setShowNewTextModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showNewFolderModal, setShowNewFolderModal] = useState(false);
-  const [showEditFolderModal, setShowEditFolderModal] = useState(false);
-  const [editingItem, setEditingItem] = useState(null);
-  const [editingFolder, setEditingFolder] = useState(null);
-  const [newItemName, setNewItemName] = useState('');
-  const [newTextArtist, setNewTextArtist] = useState('');
-  const [newTextYoutubeUrl, setNewTextYoutubeUrl] = useState('');
-  const [newTextUltimateGuitarUrl, setNewTextUltimateGuitarUrl] = useState('');
-  const [newTextSoundsliceUrl, setNewTextSoundsliceUrl] = useState('');
-  const [newTextContent, setNewTextContent] = useState('');
-  const [newFolderName, setNewFolderName] = useState('');
-  const [newTextFolderId, setNewTextFolderId] = useState('default');
-  const [editingTextFolderId, setEditingTextFolderId] = useState('default');
+const SORT_STORAGE_KEY = 'songSort';
+const SORTS = {
+  recent: { label: 'Recently added', compare: (a, b) => b.createdAt - a.createdAt },
+  name: { label: 'Name (A–Z)', compare: (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) }
+};
+
+const icons = {
+  search: <path d="M21 21l-4.35-4.35M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16z" />,
+  plus: <path d="M12 5v14M5 12h14" />,
+  more: <path d="M12 6h.01M12 12h.01M12 18h.01" />,
+  sun: (
+    <>
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </>
+  ),
+  moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
+  menu: (
+    <>
+      <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+    </>
+  )
+};
+
+const Icon = ({ name, size = 18 }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    {icons[name]}
+  </svg>
+);
+
+const emptyDraft = {
+  title: '',
+  artist: '',
+  youtubeUrl: '',
+  ultimateGuitarUrl: '',
+  soundsliceUrl: '',
+  content: '',
+  tagIds: []
+};
+
+export default function HomePage({ onPracticeText, selectedTagId = 'all', onSelectTag, isDarkMode, onToggleDarkMode }) {
+  const [tags, setTags] = useState(() => getCachedTags() || []);
+  const [songs, setSongs] = useState(() => getCachedTexts() || []);
+  const [search, setSearch] = useState('');
+  const [sortKey, setSortKey] = useState(() => localStorage.getItem(SORT_STORAGE_KEY) || 'recent');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const [draft, setDraft] = useState(emptyDraft);
+  const [editingSong, setEditingSong] = useState(null);
+  const [isSongDialogOpen, setIsSongDialogOpen] = useState(false);
+
+  const [tagDialog, setTagDialog] = useState(null); // { mode: 'new' | 'edit', id, name }
 
   const loadData = async () => {
-    const foldersData = await getFolders();
-    setFolders(foldersData);
-    const textsData = await getTexts();
-    const sortedTexts = textsData.sort((a, b) => b.createdAt - a.createdAt);
-    setAllTexts(sortedTexts);
+    const [tagsData, songsData] = await Promise.all([getTags(), getTexts()]);
+    setTags(tagsData);
+    setSongs(songsData);
   };
 
-  const texts = selectedFolderId === 'all'
-    ? allTexts
-    : allTexts.filter(t => t.folderId === selectedFolderId);
+  // First load: state is set from the promise, not synchronously in the effect
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([getTags(), getTexts()]).then(([tagsData, songsData]) => {
+      if (cancelled) return;
+      setTags(tagsData);
+      setSongs(songsData);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
-  const handleCreateText = async () => {
-    if (newItemName.trim() && newTextContent.trim()) {
-      // Use selected folder if valid, otherwise default
-      const folderId = newTextFolderId || (selectedFolderId === 'all' ? 'default' : selectedFolderId);
-      await createText(
-        newItemName.trim(),
-        newTextContent.trim(),
-        folderId,
-        newTextArtist.trim(),
-        newTextYoutubeUrl.trim(),
-        '',
-        '',
-        '',
-        [],
-        newTextUltimateGuitarUrl.trim(),
-        newTextSoundsliceUrl.trim()
-      );
-      setNewItemName('');
-      setNewTextArtist('');
-      setNewTextYoutubeUrl('');
-      setNewTextUltimateGuitarUrl('');
-      setNewTextSoundsliceUrl('');
-      setNewTextContent('');
-      setNewTextFolderId('default');
-      setShowNewTextModal(false);
-      await loadData();
-    }
+  const changeSort = (key) => {
+    setSortKey(key);
+    localStorage.setItem(SORT_STORAGE_KEY, key);
   };
 
-  const handleCreateFolder = async () => {
-    if (newFolderName.trim()) {
-      await createFolder(newFolderName.trim());
-      setNewFolderName('');
-      setShowNewFolderModal(false);
-      await loadData();
-    }
+  const tagsById = useMemo(
+    () => Object.fromEntries(tags.map(tag => [tag.id, tag])),
+    [tags]
+  );
+
+  const countFor = (tagId) => {
+    if (tagId === 'all') return songs.length;
+    if (tagId === 'untagged') return songs.filter(song => (song.tagIds || []).length === 0).length;
+    return songs.filter(song => (song.tagIds || []).includes(tagId)).length;
   };
 
-  const handleEditFolder = (folder) => {
-    setEditingFolder(folder);
-    setNewFolderName(folder.name);
-    setShowEditFolderModal(true);
+  // Search covers the title, the artist and the song's tag names
+  const visibleSongs = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    const matchesTag = (song) => {
+      if (selectedTagId === 'all') return true;
+      if (selectedTagId === 'untagged') return (song.tagIds || []).length === 0;
+      return (song.tagIds || []).includes(selectedTagId);
+    };
+    const matchesQuery = (song) => {
+      if (!query) return true;
+      const tagNames = (song.tagIds || []).map(id => tagsById[id]?.name || '').join(' ');
+      return `${song.title} ${song.artist || ''} ${tagNames}`.toLowerCase().includes(query);
+    };
+
+    return songs.filter(song => matchesTag(song) && matchesQuery(song)).sort(SORTS[sortKey].compare);
+  }, [songs, search, selectedTagId, sortKey, tagsById]);
+
+  // ---- Songs ----
+
+  const openNewSong = () => {
+    setEditingSong(null);
+    setDraft({
+      ...emptyDraft,
+      tagIds: selectedTagId !== 'all' && selectedTagId !== 'untagged' ? [selectedTagId] : []
+    });
+    setIsSongDialogOpen(true);
   };
 
-  const handleSaveFolder = async () => {
-    if (editingFolder && newFolderName.trim()) {
-      await updateFolder(editingFolder.id, newFolderName.trim());
-      setEditingFolder(null);
-      setNewFolderName('');
-      setShowEditFolderModal(false);
-      await loadData();
-    }
+  const openEditSong = (song) => {
+    setEditingSong(song);
+    setDraft({
+      title: song.title || '',
+      artist: song.artist || '',
+      youtubeUrl: song.youtubeUrl || '',
+      ultimateGuitarUrl: song.ultimateGuitarUrl || '',
+      soundsliceUrl: song.soundsliceUrl || '',
+      content: song.content || '',
+      tagIds: song.tagIds || []
+    });
+    setIsSongDialogOpen(true);
   };
 
-  const handleDeleteFolder = async (folderId) => {
-    if (confirm('Delete this folder? All texts will be moved to Uncategorized.')) {
-      await deleteFolder(folderId);
-      if (selectedFolderId === folderId) {
-        onSelectFolder('all');
-      }
-      await loadData();
-    }
-  };
+  const saveSong = async () => {
+    if (!draft.title.trim() || !draft.content.trim()) return;
 
-  const handleEditText = (text) => {
-    setEditingItem(text);
-    setNewItemName(text.title);
-    setNewTextArtist(text.artist || '');
-    setNewTextYoutubeUrl(text.youtubeUrl || '');
-    setNewTextUltimateGuitarUrl(text.ultimateGuitarUrl || '');
-    setNewTextSoundsliceUrl(text.soundsliceUrl || '');
-    setNewTextContent(text.content);
-    setEditingTextFolderId(text.folderId || 'default');
-    setShowEditModal(true);
-  };
-
-  const handleSaveEdit = async () => {
-    if (editingItem && newItemName.trim()) {
-      await updateText(editingItem.id, {
-        title: newItemName,
-        artist: newTextArtist,
-        youtubeUrl: newTextYoutubeUrl,
-        ultimateGuitarUrl: newTextUltimateGuitarUrl,
-        soundsliceUrl: newTextSoundsliceUrl,
-        content: newTextContent,
-        folderId: editingTextFolderId
+    if (editingSong) {
+      await updateText(editingSong.id, {
+        title: draft.title.trim(),
+        artist: draft.artist.trim(),
+        youtubeUrl: draft.youtubeUrl.trim(),
+        ultimateGuitarUrl: draft.ultimateGuitarUrl.trim(),
+        soundsliceUrl: draft.soundsliceUrl.trim(),
+        content: draft.content
       });
-      setEditingItem(null);
-      setNewItemName('');
-      setNewTextArtist('');
-      setNewTextYoutubeUrl('');
-      setNewTextUltimateGuitarUrl('');
-      setNewTextSoundsliceUrl('');
-      setNewTextContent('');
-      setShowEditModal(false);
-      await loadData();
+      await setTextTags(editingSong.id, draft.tagIds);
+    } else {
+      await createText({
+        title: draft.title.trim(),
+        content: draft.content,
+        artist: draft.artist.trim(),
+        youtubeUrl: draft.youtubeUrl.trim(),
+        ultimateGuitarUrl: draft.ultimateGuitarUrl.trim(),
+        soundsliceUrl: draft.soundsliceUrl.trim(),
+        tagIds: draft.tagIds
+      });
     }
+
+    setIsSongDialogOpen(false);
+    setEditingSong(null);
+    setDraft(emptyDraft);
+    await loadData();
   };
 
-  const handleDeleteText = async (textId) => {
-    if (confirm('Delete this text?')) {
-      await deleteText(textId);
-      await loadData();
-    }
+  const removeSong = async (song) => {
+    if (!confirm(`Delete "${song.title}"?`)) return;
+    await deleteText(song.id);
+    await loadData();
   };
+
+  const toggleDraftTag = (tagId) => {
+    setDraft(current => ({
+      ...current,
+      tagIds: current.tagIds.includes(tagId)
+        ? current.tagIds.filter(id => id !== tagId)
+        : [...current.tagIds, tagId]
+    }));
+  };
+
+  /** Tag a song straight from its card */
+  const toggleSongTag = async (song, tagId) => {
+    const current = song.tagIds || [];
+    const next = current.includes(tagId) ? current.filter(id => id !== tagId) : [...current, tagId];
+    setSongs(list => list.map(item => item.id === song.id ? { ...item, tagIds: next } : item));
+    await setTextTags(song.id, next);
+  };
+
+  // ---- Tags ----
+
+  const saveTag = async () => {
+    const name = tagDialog?.name.trim();
+    if (!name) return;
+    if (tagDialog.mode === 'edit') await updateTag(tagDialog.id, name);
+    else await createTag(name);
+    setTagDialog(null);
+    await loadData();
+  };
+
+  const removeTag = async (tag) => {
+    if (!confirm(`Delete the tag "${tag.name}"? The songs themselves are kept.`)) return;
+    await deleteTag(tag.id);
+    if (selectedTagId === tag.id) onSelectTag('all');
+    await loadData();
+  };
+
+  // ---- Rendering ----
+
+  const filters = [
+    { id: 'all', name: 'All songs' },
+    ...tags,
+    { id: 'untagged', name: 'Untagged' }
+  ];
+
+  const sidebar = (
+    <Flex direction="column" gap="1" p="3">
+      <Flex align="center" justify="between" px="2" pb="2">
+        <Text size="1" weight="bold" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+          Tags
+        </Text>
+        <Tooltip content="New tag">
+          <IconButton size="1" variant="soft" onClick={() => setTagDialog({ mode: 'new', name: '' })}>
+            <Icon name="plus" size={14} />
+          </IconButton>
+        </Tooltip>
+      </Flex>
+
+      {filters.map(filter => {
+        const isSelected = selectedTagId === filter.id;
+        const isRealTag = filter.id !== 'all' && filter.id !== 'untagged';
+        const count = countFor(filter.id);
+        if (filter.id === 'untagged' && count === 0) return null;
+
+        return (
+          <Flex
+            key={filter.id}
+            align="center"
+            justify="between"
+            gap="1"
+            px="2"
+            py="1"
+            style={{
+              borderRadius: 'var(--radius-3)',
+              cursor: 'pointer',
+              background: isSelected ? 'var(--accent-a4)' : 'transparent'
+            }}
+            onClick={() => {
+              onSelectTag(filter.id);
+              setIsSidebarOpen(false);
+            }}
+          >
+            <Text size="2" weight={isSelected ? 'bold' : 'regular'} truncate>
+              {filter.name}
+            </Text>
+            <Flex align="center" gap="1">
+              <Text size="1" color="gray" style={{ fontVariantNumeric: 'tabular-nums' }}>{count}</Text>
+              {isRealTag && (
+                <DropdownMenu.Root>
+                  <DropdownMenu.Trigger onClick={(event) => event.stopPropagation()}>
+                    <IconButton size="1" variant="ghost" color="gray" aria-label={`Edit ${filter.name}`}>
+                      <Icon name="more" size={14} />
+                    </IconButton>
+                  </DropdownMenu.Trigger>
+                  <DropdownMenu.Content size="1">
+                    <DropdownMenu.Item onSelect={() => setTagDialog({ mode: 'edit', id: filter.id, name: filter.name })}>
+                      Rename
+                    </DropdownMenu.Item>
+                    <DropdownMenu.Item color="red" onSelect={() => removeTag(filter)}>
+                      Delete
+                    </DropdownMenu.Item>
+                  </DropdownMenu.Content>
+                </DropdownMenu.Root>
+              )}
+            </Flex>
+          </Flex>
+        );
+      })}
+    </Flex>
+  );
 
   return (
-    <div
-      className="min-h-screen transition-colors"
-      style={{
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Helvetica Neue", Helvetica, Arial, sans-serif',
-        backgroundColor: isDarkMode ? '#111827' : '#f9fafb'
-      }}>
-      {/* Header */}
-      <div className={`border-b-custom px-3 md:px-6 py-3 md:py-5 flex items-center justify-between transition-colors relative z-30 ${isDarkMode ? 'border-blue-600 bg-gray-800' : 'border-black bg-white'
-        }`}>
-        <div className="flex items-center gap-2">
-          {/* Mobile Menu Button */}
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`md:hidden p-2 rounded-lg border-none bg-transparent transition-colors ${isDarkMode
-              ? 'hover:bg-gray-700 text-white'
-              : 'hover:bg-gray-100 text-black'
-              }`}
-            aria-label="Toggle menu"
+    <Box style={{ minHeight: '100vh', background: 'var(--gray-2)' }}>
+      {/* Top bar */}
+      <Box
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 20,
+          background: 'var(--color-panel-solid)',
+          borderBottom: '1px solid var(--gray-a5)'
+        }}
+      >
+        <Flex align="center" gap="3" px={{ initial: '3', md: '5' }} py="3">
+          <IconButton
+            variant="ghost"
+            color="gray"
+            className="home-menu-button"
+            onClick={() => setIsSidebarOpen(open => !open)}
+            aria-label="Show tags"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="12" x2="21" y2="12" />
-              <line x1="3" y1="6" x2="21" y2="6" />
-              <line x1="3" y1="18" x2="21" y2="18" />
-            </svg>
-          </button>
-          <h1 className={`text-lg md:text-2xl font-bold uppercase tracking-tight transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-            }`}>
-            THE REPETOIRE
-          </h1>
-        </div>
-        <div className="flex items-center gap-2 md:gap-3">
-          <button
-            onClick={onToggleDarkMode}
-            className={`p-2 md:p-2.5 rounded-xl border-none transition-colors ${isDarkMode
-              ? 'bg-gray-700 hover:bg-gray-600 text-blue-300'
-              : 'bg-gray-200 hover:bg-gray-300 text-gray-700'
-              }`}
-            title={isDarkMode ? 'Light mode' : 'Dark mode'}
-          >
-            {isDarkMode ? (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="5" />
-                <line x1="12" y1="1" x2="12" y2="3" />
-                <line x1="12" y1="21" x2="12" y2="23" />
-                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
-                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
-                <line x1="1" y1="12" x2="3" y2="12" />
-                <line x1="21" y1="12" x2="23" y2="12" />
-                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
-                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
-              </svg>
-            ) : (
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-              </svg>
-            )}
-          </button>
-          <button
-            onClick={() => {
-              setNewTextFolderId(selectedFolderId === 'all' ? 'default' : selectedFolderId);
-              setShowNewTextModal(true);
-            }}
-            className={`px-5 md:px-6 py-2.5 md:py-3 text-xs font-bold tracking-wide transition-colors uppercase rounded-xl border-[1.5px] ${isDarkMode
-              ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400'
-              : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
-              }`}
-          >
-            <span className="hidden sm:inline">New Text</span>
-            <span className="sm:hidden">+</span>
-          </button>
-        </div>
-      </div>
+            <Icon name="menu" />
+          </IconButton>
 
-      {/* Mobile Sidebar Overlay - removed to keep screen visible */}
+          <Heading size="4" style={{ letterSpacing: '-0.01em', whiteSpace: 'nowrap' }}>
+            The Repetoire
+          </Heading>
 
-      {/* Main Layout with Sidebar */}
-      <div className="flex">
-        {/* Sidebar */}
-        <div
-          className={`
-            w-64 border-r-2 min-h-screen
-            ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-white'}
-            transition-transform duration-300 ease-in-out
-            fixed top-0 left-0 bottom-0 z-50
-            md:sticky md:top-0 md:translate-x-0 md:z-0
-            ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'}
-          `}
-        >
-          <div className="p-4">
-            <div className="mb-4">
-              <Button
-                variant="outline"
-                color="blue"
-                size="3"
-                style={{ width: '100%', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 700 }}
-                onClick={() => setShowNewFolderModal(true)}
-              >
-                New Folder
-              </Button>
-            </div>
-
-            {/* All Texts */}
-            <div
-              onClick={() => {
-                onSelectFolder('all');
-                setIsSidebarOpen(false);
-              }}
-              className={`px-4 py-3 rounded-xl cursor-pointer transition-all mb-2 border-[1.5px] ${selectedFolderId === 'all'
-                ? isDarkMode
-                  ? 'bg-blue-600 text-white border-blue-600 font-bold'
-                  : 'bg-black text-white border-black font-bold'
-                : isDarkMode
-                  ? 'border-gray-700 text-blue-400 hover:border-gray-600 hover:bg-gray-700'
-                  : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                }`}
+          <Box style={{ flex: 1, maxWidth: 420 }}>
+            <TextField.Root
+              size="2"
+              placeholder="Search songs, artists and tags"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
             >
-              <div className="flex items-center justify-between">
-                <span className="text-sm">All Texts</span>
-                <span className={`text-xs tabular-nums ${selectedFolderId === 'all'
-                  ? ''
-                  : isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                  }`}>
-                  {allTexts.length}
-                </span>
-              </div>
-            </div>
+              <TextField.Slot>
+                <Icon name="search" size={15} />
+              </TextField.Slot>
+              {search && (
+                <TextField.Slot>
+                  <IconButton size="1" variant="ghost" color="gray" onClick={() => setSearch('')} aria-label="Clear search">
+                    ✕
+                  </IconButton>
+                </TextField.Slot>
+              )}
+            </TextField.Root>
+          </Box>
 
-            {/* Folder List */}
-            <div className="space-y-1">
-              {folders.map(folder => (
-                <div
-                  key={folder.id}
-                  className={`px-4 py-3 rounded-xl transition-all border-[1.5px] group ${selectedFolderId === folder.id
-                    ? isDarkMode
-                      ? 'bg-blue-600 text-white border-blue-600 font-bold'
-                      : 'bg-black text-white border-black font-bold'
-                    : isDarkMode
-                      ? 'border-gray-700 text-blue-400 hover:border-gray-600 hover:bg-gray-700'
-                      : 'border-gray-200 text-gray-700 hover:border-gray-300 hover:bg-gray-50'
-                    }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span
-                      className="text-sm cursor-pointer flex-1"
-                      onClick={() => {
-                        onSelectFolder(folder.id);
-                        setIsSidebarOpen(false);
-                      }}
-                    >
-                      {folder.name}
-                    </span>
-                    <div className="flex items-center gap-1">
-                      <span className={`text-xs tabular-nums mr-2 ${selectedFolderId === folder.id
-                        ? ''
-                        : isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                        }`}>
-                        {allTexts.filter(t => t.folderId === folder.id).length}
-                      </span>
-                      {folder.id !== 'default' && (
-                        <span className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ display: 'inline-flex', gap: '2px' }}>
-                          <Tooltip content="Edit folder">
-                            <IconButton
-                              variant="ghost"
-                              size="1"
-                              color="gray"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditFolder(folder);
-                              }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                              </svg>
-                            </IconButton>
-                          </Tooltip>
-                          <Tooltip content="Delete folder">
-                            <IconButton
-                              variant="ghost"
-                              size="1"
-                              color="red"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteFolder(folder.id);
-                              }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                              </svg>
-                            </IconButton>
-                          </Tooltip>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+          <Box className="home-sort">
+            <Select.Root value={sortKey} onValueChange={changeSort} size="2">
+              <Select.Trigger variant="soft" color="gray" />
+              <Select.Content>
+                {Object.entries(SORTS).map(([key, sort]) => (
+                  <Select.Item key={key} value={key}>{sort.label}</Select.Item>
+                ))}
+              </Select.Content>
+            </Select.Root>
+          </Box>
 
-        {/* Content */}
-        <div className="flex-1 p-4 md:p-6">
-          {selectedFolderId === 'all' ? (
-            // Show folder cards when "All Texts" is selected
-            allTexts.length === 0 ? (
-              <div className="text-center py-16 md:py-24 px-4">
-                <svg className={`mx-auto h-12 md:h-16 w-12 md:w-16 mb-4 md:mb-6 transition-colors ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
-                  }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className={`text-base md:text-lg font-light transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                  }`}>No texts yet</p>
-                <p className={`text-sm mt-2 transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                  }`}>Tap "+" to get started</p>
-              </div>
-            ) : (
-              <div className="max-w-7xl mx-auto">
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-4 mt-4">
-                  {folders.map(folder => {
-                    const folderTexts = allTexts.filter(t => t.folderId === folder.id);
-                    return (
-                      <div
-                        key={folder.id}
-                        onClick={() => onSelectFolder(folder.id)}
-                        className={`rounded-xl md:rounded-2xl p-3 md:p-5 transition-all group hover:shadow-xl border-2 cursor-pointer ${isDarkMode
-                          ? 'bg-gray-800 border-blue-500 hover:border-blue-400 shadow-md'
-                          : 'bg-white border-gray-900 hover:border-blue-600 shadow-sm'
-                          }`}
-                      >
-                        <div className="flex items-start justify-between mb-2 md:mb-3">
-                          <div className="flex-1 min-w-0">
-                            <div className={`mb-2 md:mb-3 transition-colors ${isDarkMode ? 'text-blue-400' : 'text-blue-600'
-                              }`}>
-                              <svg className="w-5 h-5 md:w-8 md:h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-                              </svg>
-                            </div>
-                            <h3 className={`font-bold text-sm md:text-lg transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                              }`}>
-                              {folder.name}
-                            </h3>
-                            <p className={`md:text-sm font-light mt-1 md:mt-2 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                              }`} style={{ fontSize: '11px' }}>
-                              {folderTexts.length} {folderTexts.length === 1 ? 'text' : 'texts'}
-                            </p>
-                          </div>
-                        </div>
-                        {folderTexts.length > 0 && (
-                          <div className={`text-xs font-light transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-500'
-                            }`}>
-                            {folderTexts.slice(0, 3).map((t, idx) => (
-                              <div key={t.id} className="truncate">
-                                • {t.title}
-                              </div>
-                            ))}
-                            {folderTexts.length > 3 && (
-                              <div className="mt-1">+ {folderTexts.length - 3} more</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )
+          <Tooltip content={isDarkMode ? 'Light mode' : 'Dark mode'}>
+            <IconButton variant="soft" color="gray" onClick={onToggleDarkMode} aria-label="Toggle theme">
+              <Icon name={isDarkMode ? 'sun' : 'moon'} />
+            </IconButton>
+          </Tooltip>
+
+          <Button onClick={openNewSong}>
+            <Icon name="plus" size={15} />
+            <span className="home-new-label">New song</span>
+          </Button>
+        </Flex>
+      </Box>
+
+      <Flex align="start">
+        {/* Dim the songs behind the drawer on a phone */}
+        {isSidebarOpen && (
+          <Box
+            onClick={() => setIsSidebarOpen(false)}
+            className="home-scrim"
+            style={{ position: 'fixed', inset: '61px 0 0 0', background: 'var(--black-a6)', zIndex: 18 }}
+          />
+        )}
+
+        {/* Tag sidebar */}
+        <Box
+          className={`home-sidebar${isSidebarOpen ? ' is-open' : ''}`}
+          style={{
+            width: 232,
+            flexShrink: 0,
+            borderRight: '1px solid var(--gray-a5)',
+            background: 'var(--color-panel-solid)',
+            minHeight: 'calc(100vh - 61px)'
+          }}
+        >
+          {sidebar}
+        </Box>
+
+        {/* Songs */}
+        <Box p={{ initial: '3', md: '5' }} style={{ flex: 1, minWidth: 0 }}>
+          <Flex align="center" justify="between" mb="4" gap="3" wrap="wrap">
+            <Heading size="3" color="gray" weight="medium">
+              {selectedTagId === 'all'
+                ? 'All songs'
+                : selectedTagId === 'untagged'
+                  ? 'Untagged'
+                  : tagsById[selectedTagId]?.name || 'Songs'}
+              <Text size="2" color="gray" ml="2">
+                {visibleSongs.length}
+              </Text>
+            </Heading>
+          </Flex>
+
+          {visibleSongs.length === 0 ? (
+            <Flex direction="column" align="center" gap="2" py="9">
+              <Text size="3" color="gray">
+                {search ? `Nothing matches “${search}”` : 'No songs here yet'}
+              </Text>
+              {!search && (
+                <Button variant="soft" onClick={openNewSong}>Add your first song</Button>
+              )}
+            </Flex>
           ) : (
-            // Show text cards when a specific folder is selected
-            texts.length === 0 ? (
-              <div className="text-center py-16 md:py-24 px-4">
-                <svg className={`mx-auto h-12 md:h-16 w-12 md:w-16 mb-4 md:mb-6 transition-colors ${isDarkMode ? 'text-gray-600' : 'text-gray-400'
-                  }`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className={`text-base md:text-lg font-light transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
-                  }`}>No texts in this folder</p>
-                <p className={`text-sm mt-2 transition-colors ${isDarkMode ? 'text-gray-500' : 'text-gray-400'
-                  }`}>Tap "+" to add a text</p>
-              </div>
-            ) : (
-              <div className="max-w-7xl mx-auto">
-                <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 md:gap-4 mt-4">
-                  {texts.map(text => (
-                    <div
-                      key={text.id}
-                      className={`rounded-xl md:rounded-2xl p-3 md:p-5 transition-all group hover:shadow-xl border-2 flex flex-col ${isDarkMode
-                        ? 'bg-gray-800 border-blue-500 hover:border-blue-400 shadow-md'
-                        : 'bg-white border-gray-900 hover:border-blue-600 shadow-sm'
-                        }`}
-                    >
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="flex-1 min-w-0">
-                          <h3 className={`font-bold text-sm md:text-base transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                            }`}>
-                            {text.title}
-                          </h3>
-                          {text.artist && (
-                            <p className={`text-xs md:text-sm font-light truncate mt-1 transition-colors ${isDarkMode ? 'text-gray-400' : 'text-gray-600'
-                              }`}>
-                              {text.artist}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity ml-2">
-                          <button
-                            onClick={() => handleEditText(text)}
-                            className={`p-1.5 rounded-lg border-none bg-transparent transition-all ${isDarkMode
-                              ? 'hover:bg-gray-700 text-gray-400 hover:text-white'
-                              : 'hover:bg-gray-100 text-gray-500 hover:text-black'
-                              }`}
-                            title="Edit"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => handleDeleteText(text.id)}
-                            className={`p-1.5 rounded-lg border-none bg-transparent transition-all ${isDarkMode
-                              ? 'hover:bg-red-900 text-gray-400 hover:text-red-400'
-                              : 'hover:bg-red-50 text-gray-500 hover:text-red-600'
-                              }`}
-                            title="Delete"
-                          >
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                              <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Bottom actions - always pinned to bottom of card */}
-                      <div className="mt-auto">
-                        {(text.ultimateGuitarUrl || text.soundsliceUrl) && (
-                          <div className="flex gap-1 mb-2" style={{ flexWrap: 'wrap' }}>
-                            {text.ultimateGuitarUrl && (
-                              <a
-                                href={text.ultimateGuitarUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-white text-black border-white hover:bg-gray-200' : 'bg-black text-white border-black hover:bg-gray-800'
-                                  }`}
-                                style={{ textDecoration: 'none', fontSize: '9px' }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                Ultimate Guitar
-                              </a>
-                            )}
-                            {text.soundsliceUrl && (
-                              <a
-                                href={text.soundsliceUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className={`no-underline px-2 py-1 font-bold uppercase tracking-wider rounded-lg border-[1.5px] transition-all ${isDarkMode ? 'bg-white text-black border-white hover:bg-gray-200' : 'bg-black text-white border-black hover:bg-gray-800'
-                                  }`}
-                                style={{ textDecoration: 'none', fontSize: '9px' }}
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                Soundslice
-                              </a>
-                            )}
-                          </div>
+            <Grid columns={{ initial: '1', xs: '2', md: '3', xl: '4' }} gap="3">
+              {visibleSongs.map(song => (
+                <Card key={song.id} size="2" style={{ display: 'flex', flexDirection: 'column' }}>
+                  <Flex direction="column" gap="2" style={{ height: '100%' }}>
+                    <Flex justify="between" align="start" gap="2">
+                      <Box style={{ minWidth: 0 }}>
+                        <Text as="div" size="3" weight="bold" truncate>{song.title}</Text>
+                        {song.artist && (
+                          <Text as="div" size="2" color="gray" truncate>{song.artist}</Text>
                         )}
-                        <button
-                          onClick={() => onPracticeText(text)}
-                          className={`w-full px-4 py-3 text-xs md:text-sm font-bold uppercase tracking-wider transition-all rounded-xl border-[1.5px] shadow-md hover:shadow-lg ${isDarkMode
-                            ? 'bg-blue-500 text-white border-blue-400 hover:bg-blue-400'
-                            : 'bg-blue-600 text-white border-blue-700 hover:bg-blue-700'
-                            }`}
-                        >
-                          Practice
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )
+                      </Box>
+
+                      <DropdownMenu.Root>
+                        <DropdownMenu.Trigger>
+                          <IconButton size="1" variant="ghost" color="gray" aria-label={`Options for ${song.title}`}>
+                            <Icon name="more" size={16} />
+                          </IconButton>
+                        </DropdownMenu.Trigger>
+                        <DropdownMenu.Content size="1">
+                          <DropdownMenu.Item onSelect={() => openEditSong(song)}>Edit</DropdownMenu.Item>
+                          {tags.length > 0 && (
+                            <DropdownMenu.Sub>
+                              <DropdownMenu.SubTrigger>Tags</DropdownMenu.SubTrigger>
+                              <DropdownMenu.SubContent>
+                                {tags.map(tag => (
+                                  <DropdownMenu.CheckboxItem
+                                    key={tag.id}
+                                    checked={(song.tagIds || []).includes(tag.id)}
+                                    onSelect={(event) => {
+                                      event.preventDefault();
+                                      toggleSongTag(song, tag.id);
+                                    }}
+                                  >
+                                    {tag.name}
+                                  </DropdownMenu.CheckboxItem>
+                                ))}
+                              </DropdownMenu.SubContent>
+                            </DropdownMenu.Sub>
+                          )}
+                          <DropdownMenu.Separator />
+                          <DropdownMenu.Item color="red" onSelect={() => removeSong(song)}>Delete</DropdownMenu.Item>
+                        </DropdownMenu.Content>
+                      </DropdownMenu.Root>
+                    </Flex>
+
+                    {(song.tagIds || []).length > 0 && (
+                      <Flex gap="1" wrap="wrap">
+                        {(song.tagIds || []).map(tagId => tagsById[tagId] && (
+                          <Badge
+                            key={tagId}
+                            variant="soft"
+                            color="gray"
+                            radius="full"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => onSelectTag(tagId)}
+                          >
+                            {tagsById[tagId].name}
+                          </Badge>
+                        ))}
+                      </Flex>
+                    )}
+
+                    <Box style={{ flex: 1 }} />
+
+                    {(song.ultimateGuitarUrl || song.soundsliceUrl) && (
+                      <Flex gap="2">
+                        {song.ultimateGuitarUrl && (
+                          <Button size="1" variant="soft" color="gray" asChild>
+                            <a href={song.ultimateGuitarUrl} target="_blank" rel="noopener noreferrer">Ultimate Guitar</a>
+                          </Button>
+                        )}
+                        {song.soundsliceUrl && (
+                          <Button size="1" variant="soft" color="gray" asChild>
+                            <a href={song.soundsliceUrl} target="_blank" rel="noopener noreferrer">Soundslice</a>
+                          </Button>
+                        )}
+                      </Flex>
+                    )}
+
+                    <Button onClick={() => onPracticeText(song)}>Practice</Button>
+                  </Flex>
+                </Card>
+              ))}
+            </Grid>
           )}
-        </div>
-      </div>
+        </Box>
+      </Flex>
 
-      {/* New Folder Modal */}
-      <Dialog.Root open={showNewFolderModal} onOpenChange={(open) => {
-        setShowNewFolderModal(open);
-        if (!open) setNewFolderName('');
-      }}>
-        <Dialog.Content maxWidth="400px">
-          <Dialog.Title>New Folder</Dialog.Title>
-          <Flex direction="column" gap="4" mt="4">
+      {/* Song dialog */}
+      <Dialog.Root
+        open={isSongDialogOpen}
+        onOpenChange={(open) => {
+          setIsSongDialogOpen(open);
+          if (!open) { setEditingSong(null); setDraft(emptyDraft); }
+        }}
+      >
+        <Dialog.Content maxWidth="640px">
+          <Dialog.Title>{editingSong ? 'Edit song' : 'New song'}</Dialog.Title>
+          <Flex direction="column" gap="3" mt="4">
             <TextField.Root
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="Folder name"
               size="3"
+              placeholder="Title"
+              value={draft.title}
+              onChange={(event) => setDraft({ ...draft, title: event.target.value })}
               autoFocus
             />
+            <TextField.Root
+              size="3"
+              placeholder="Artist (optional)"
+              value={draft.artist}
+              onChange={(event) => setDraft({ ...draft, artist: event.target.value })}
+            />
+            <TextField.Root
+              size="3"
+              placeholder="YouTube URL (optional)"
+              value={draft.youtubeUrl}
+              onChange={(event) => setDraft({ ...draft, youtubeUrl: event.target.value })}
+            />
+            <Grid columns={{ initial: '1', sm: '2' }} gap="3">
+              <TextField.Root
+                size="3"
+                placeholder="Ultimate Guitar URL"
+                value={draft.ultimateGuitarUrl}
+                onChange={(event) => setDraft({ ...draft, ultimateGuitarUrl: event.target.value })}
+              />
+              <TextField.Root
+                size="3"
+                placeholder="Soundslice URL"
+                value={draft.soundsliceUrl}
+                onChange={(event) => setDraft({ ...draft, soundsliceUrl: event.target.value })}
+              />
+            </Grid>
+
+            <QuillEditor
+              value={draft.content}
+              onChange={(value) => setDraft(current => ({ ...current, content: value }))}
+              placeholder="Paste the lyrics and chords here…"
+              isDarkMode={isDarkMode}
+            />
+
+            <Box>
+              <Text as="div" size="1" weight="bold" color="gray" mb="2" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                Tags
+              </Text>
+              <Flex gap="2" wrap="wrap">
+                {tags.map(tag => {
+                  const isOn = draft.tagIds.includes(tag.id);
+                  return (
+                    <Badge
+                      key={tag.id}
+                      variant={isOn ? 'solid' : 'soft'}
+                      color={isOn ? undefined : 'gray'}
+                      radius="full"
+                      size="2"
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => toggleDraftTag(tag.id)}
+                    >
+                      {tag.name}
+                    </Badge>
+                  );
+                })}
+                <Badge
+                  variant="outline"
+                  color="gray"
+                  radius="full"
+                  size="2"
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => setTagDialog({ mode: 'new', name: '' })}
+                >
+                  + New tag
+                </Badge>
+              </Flex>
+            </Box>
+
+            <Separator size="4" />
+
             <Flex gap="3" justify="end">
               <Dialog.Close>
-                <Button variant="soft" color="gray" size="2">
-                  Cancel
-                </Button>
+                <Button variant="soft" color="gray">Cancel</Button>
               </Dialog.Close>
-              <Button
-                size="2"
-                onClick={handleCreateFolder}
-                disabled={!newFolderName.trim()}
-              >
-                Create
+              <Button onClick={saveSong} disabled={!draft.title.trim() || !draft.content.trim()}>
+                {editingSong ? 'Save' : 'Create'}
               </Button>
             </Flex>
           </Flex>
         </Dialog.Content>
       </Dialog.Root>
 
-      {/* Edit Folder Modal */}
-      <Dialog.Root open={showEditFolderModal && !!editingFolder} onOpenChange={(open) => {
-        setShowEditFolderModal(open);
-        if (!open) { setEditingFolder(null); setNewFolderName(''); }
-      }}>
+      {/* Tag dialog */}
+      <Dialog.Root open={!!tagDialog} onOpenChange={(open) => { if (!open) setTagDialog(null); }}>
         <Dialog.Content maxWidth="400px">
-          <Dialog.Title>Edit Folder</Dialog.Title>
+          <Dialog.Title>{tagDialog?.mode === 'edit' ? 'Rename tag' : 'New tag'}</Dialog.Title>
           <Flex direction="column" gap="4" mt="4">
             <TextField.Root
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="Folder name"
               size="3"
+              placeholder="Tag name"
+              value={tagDialog?.name || ''}
+              onChange={(event) => setTagDialog(current => ({ ...current, name: event.target.value }))}
+              onKeyDown={(event) => { if (event.key === 'Enter') saveTag(); }}
               autoFocus
             />
             <Flex gap="3" justify="end">
               <Dialog.Close>
-                <Button variant="soft" color="gray" size="2">
-                  Cancel
-                </Button>
+                <Button variant="soft" color="gray">Cancel</Button>
               </Dialog.Close>
-              <Button
-                size="2"
-                onClick={handleSaveFolder}
-                disabled={!newFolderName.trim()}
-              >
-                Save
+              <Button onClick={saveTag} disabled={!tagDialog?.name.trim()}>
+                {tagDialog?.mode === 'edit' ? 'Save' : 'Create'}
               </Button>
             </Flex>
           </Flex>
         </Dialog.Content>
       </Dialog.Root>
 
-      {/* New Text Modal */}
-      {
-        showNewTextModal && (
-          <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-            <div
-              className={`rounded-3xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-                }`}>
-              <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                }`}>New Text</h3>
-              <input
-                type="text"
-                value={newItemName}
-                onChange={(e) => setNewItemName(e.target.value)}
-                placeholder="Title"
-                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                  }`}
-                autoFocus
-              />
-              <input
-                type="text"
-                value={newTextArtist}
-                onChange={(e) => setNewTextArtist(e.target.value)}
-                placeholder="Artist (optional)"
-                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                  }`}
-              />
-              <input
-                type="url"
-                value={newTextYoutubeUrl}
-                onChange={(e) => setNewTextYoutubeUrl(e.target.value)}
-                placeholder="YouTube URL (optional)"
-                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-4 transition-colors ${isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                  }`}
-              />
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <input
-                  type="url"
-                  value={newTextUltimateGuitarUrl}
-                  onChange={(e) => setNewTextUltimateGuitarUrl(e.target.value)}
-                  placeholder="Ultimate Guitar URL (optional)"
-                  className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none transition-colors ${isDarkMode
-                    ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                    : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                    }`}
-                />
-                <input
-                  type="url"
-                  value={newTextSoundsliceUrl}
-                  onChange={(e) => setNewTextSoundsliceUrl(e.target.value)}
-                  placeholder="Soundslice URL (optional)"
-                  className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none transition-colors ${isDarkMode
-                    ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                    : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                    }`}
-                />
-              </div>
-              <div className="mb-4">
-                <QuillEditor
-                  value={newTextContent}
-                  onChange={setNewTextContent}
-                  placeholder="Paste your text here..."
-                  isDarkMode={isDarkMode}
-                />
-              </div>
-              <div className="mb-4">
-                <Select.Root value={newTextFolderId} onValueChange={setNewTextFolderId} size="3">
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="default">Uncategorized</Select.Item>
-                    {folders.filter(f => f.id !== 'default').map((folder) => (
-                      <Select.Item key={folder.id} value={folder.id}>
-                        {folder.name}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowNewTextModal(false);
-                    setNewItemName('');
-                    setNewTextArtist('');
-                    setNewTextYoutubeUrl('');
-                    setNewTextUltimateGuitarUrl('');
-                    setNewTextSoundsliceUrl('');
-                    setNewTextContent('');
-                  }}
-                  className={`px-6 py-3 rounded-xl border-[1.5px] text-xs font-bold uppercase tracking-wider transition-colors ${isDarkMode
-                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                    }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateText}
-                  disabled={!newItemName.trim() || !newTextContent.trim()}
-                  className={`px-6 py-3 rounded-xl border-[1.5px] text-xs font-bold uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
-                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                    }`}
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
-
-      {/* Edit Modal */}
-      {
-        showEditModal && editingItem && (
-          <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-            <div className={`rounded-xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto border-[1.5px] transition-colors ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'
-              }`}>
-              <h3 className={`text-xl font-semibold mb-5 transition-colors ${isDarkMode ? 'text-white' : 'text-black'
-                }`}>
-                Edit Text
-              </h3>
-              <input
-                type="text"
-                value={newItemName}
-                onChange={(e) => setNewItemName(e.target.value)}
-                placeholder="Title"
-                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                  }`}
-                autoFocus
-              />
-              <input
-                type="text"
-                value={newTextArtist}
-                onChange={(e) => setNewTextArtist(e.target.value)}
-                placeholder="Artist (optional)"
-                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                  }`}
-              />
-              <input
-                type="url"
-                value={newTextYoutubeUrl}
-                onChange={(e) => setNewTextYoutubeUrl(e.target.value)}
-                placeholder="YouTube URL (optional)"
-                className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none mb-3 transition-colors ${isDarkMode
-                  ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                  : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                  }`}
-              />
-              <div className="grid grid-cols-2 gap-4 mb-3">
-                <input
-                  type="url"
-                  value={newTextUltimateGuitarUrl}
-                  onChange={(e) => setNewTextUltimateGuitarUrl(e.target.value)}
-                  placeholder="Ultimate Guitar URL (optional)"
-                  className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none transition-colors ${isDarkMode
-                    ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                    : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                    }`}
-                />
-                <input
-                  type="url"
-                  value={newTextSoundsliceUrl}
-                  onChange={(e) => setNewTextSoundsliceUrl(e.target.value)}
-                  placeholder="Soundslice URL (optional)"
-                  className={`w-full px-4 py-3 border-[1.5px] rounded-xl focus:outline-none transition-colors ${isDarkMode
-                    ? 'border-gray-600 bg-gray-700 text-white placeholder-gray-400 focus:border-gray-400'
-                    : 'border-gray-300 bg-white text-black placeholder-gray-400 focus:border-black'
-                    }`}
-                />
-              </div>
-              <div className="mb-5">
-                <QuillEditor
-                  value={newTextContent}
-                  onChange={setNewTextContent}
-                  placeholder="Text content"
-                  isDarkMode={isDarkMode}
-                />
-              </div>
-              <div className="mb-5">
-                <Select.Root value={editingTextFolderId} onValueChange={setEditingTextFolderId} size="3">
-                  <Select.Trigger style={{ width: '100%' }} />
-                  <Select.Content>
-                    <Select.Item value="default">Uncategorized</Select.Item>
-                    {folders.filter(f => f.id !== 'default').map((folder) => (
-                      <Select.Item key={folder.id} value={folder.id}>
-                        {folder.name}
-                      </Select.Item>
-                    ))}
-                  </Select.Content>
-                </Select.Root>
-              </div>
-              <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setEditingItem(null);
-                    setNewItemName('');
-                    setNewTextArtist('');
-                    setNewTextYoutubeUrl('');
-                    setNewTextUltimateGuitarUrl('');
-                    setNewTextSoundsliceUrl('');
-                    setNewTextContent('');
-                  }}
-                  className={`px-5 py-2.5 border-[1.5px] rounded-xl text-sm font-bold uppercase tracking-wider transition-colors ${isDarkMode
-                    ? 'border-gray-600 text-gray-200 hover:border-gray-500 hover:bg-gray-700'
-                    : 'border-gray-300 text-black hover:border-black hover:bg-gray-50'
-                    }`}
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSaveEdit}
-                  disabled={!newItemName.trim() || !newTextContent.trim()}
-                  className={`px-5 py-2.5 text-sm font-bold uppercase tracking-wider transition-colors rounded-xl border-[1.5px] disabled:opacity-50 disabled:cursor-not-allowed ${isDarkMode
-                    ? 'bg-white text-black border-white hover:bg-gray-100 disabled:hover:bg-white'
-                    : 'bg-black text-white border-black hover:bg-gray-800 disabled:hover:bg-black'
-                    }`}
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      }
-    </div >
+      <style>{`
+        /* The sidebar is a drawer on a phone and a column from md up */
+        .home-sidebar {
+          position: fixed;
+          top: 61px;
+          bottom: 0;
+          left: 0;
+          z-index: 19;
+          transform: translateX(-100%);
+          transition: transform 0.2s ease;
+        }
+        .home-sidebar.is-open { transform: translateX(0); }
+        @media (min-width: 768px) {
+          .home-sidebar { position: sticky; top: 61px; transform: none; }
+          .home-menu-button { display: none !important; }
+          .home-scrim { display: none !important; }
+        }
+        @media (max-width: 640px) {
+          .home-sort { display: none; }
+          .home-new-label { display: none; }
+        }
+      `}</style>
+    </Box>
   );
 }

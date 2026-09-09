@@ -55,10 +55,151 @@ const clearOldCaches = () => {
 };
 
 // Synchronous cache getters — return cached data instantly (or null if no cache)
-export const getCachedFolders = () => getCache('folders')?.data || null;
 export const getCachedTexts = () => getCache('texts_all')?.data || null;
 
-// ---- Folder operations ----
+// ---- Tag operations ----
+//
+// A song has any number of tags, joined through text_tags. Installations that
+// haven't run the tags migration yet fall back to reading folders as tags, so
+// the app keeps working until the SQL is applied.
+
+const mapTag = (tag) => ({
+  id: tag.id,
+  name: tag.name,
+  createdAt: tag.created_at
+});
+
+let tagsTableMissing = false;
+
+const isMissingTable = (error) =>
+  error?.code === '42P01' || error?.code === 'PGRST205' || /does not exist/i.test(error?.message || '');
+
+export const getCachedTags = () => getCache('tags')?.data || null;
+
+export const getTags = async () => {
+  const cached = getCache('tags');
+  if (cached && !cached.isStale) return cached.data;
+
+  const { data, error } = await supabase
+    .from('tags')
+    .select('*')
+    .order('name', { ascending: true });
+
+  if (error) {
+    if (isMissingTable(error)) {
+      // Before the migration: show the old folders as tags
+      tagsTableMissing = true;
+      const folders = await getFolders();
+      return folders.filter(folder => folder.id !== 'default');
+    }
+    console.error('Error fetching tags:', error);
+    return cached?.data || [];
+  }
+
+  const result = data.map(mapTag);
+  setCache('tags', result);
+  return result;
+};
+
+export const createTag = async (name) => {
+  const newTag = {
+    id: `tag-${Date.now()}`,
+    name,
+    created_at: Date.now()
+  };
+
+  const { data, error } = await supabase
+    .from('tags')
+    .insert([newTag])
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error creating tag:', error);
+    throw error;
+  }
+
+  invalidateCache('tags');
+  return mapTag(data);
+};
+
+export const updateTag = async (id, name) => {
+  const { data, error } = await supabase
+    .from('tags')
+    .update({ name, updated_at: Date.now() })
+    .eq('id', id)
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error updating tag:', error);
+    throw error;
+  }
+
+  invalidateCache('tags');
+  invalidateCache('texts_all');
+  return mapTag(data);
+};
+
+export const deleteTag = async (id) => {
+  // text_tags rows cascade, so songs simply lose the tag
+  const { error } = await supabase.from('tags').delete().eq('id', id);
+
+  if (error) {
+    console.error('Error deleting tag:', error);
+    throw error;
+  }
+
+  invalidateCache('tags');
+  invalidateCache('texts_all');
+};
+
+/** Replace the whole tag set for one song */
+export const setTextTags = async (textId, tagIds) => {
+  const { error: deleteError } = await supabase
+    .from('text_tags')
+    .delete()
+    .eq('text_id', textId);
+
+  if (deleteError) {
+    console.error('Error clearing tags:', deleteError);
+    throw deleteError;
+  }
+
+  if (tagIds.length > 0) {
+    const { error } = await supabase
+      .from('text_tags')
+      .insert(tagIds.map(tagId => ({ text_id: textId, tag_id: tagId })));
+
+    if (error) {
+      console.error('Error saving tags:', error);
+      throw error;
+    }
+  }
+
+  invalidateCache('texts_all');
+  invalidateCache(`text_${textId}`);
+};
+
+/** Map of text id -> tag ids */
+const getTagsByText = async () => {
+  if (tagsTableMissing) return null;
+
+  const { data, error } = await supabase.from('text_tags').select('text_id, tag_id');
+  if (error) {
+    if (isMissingTable(error)) tagsTableMissing = true;
+    else console.error('Error fetching tag links:', error);
+    return null;
+  }
+
+  const byText = {};
+  for (const row of data) {
+    (byText[row.text_id] = byText[row.text_id] || []).push(row.tag_id);
+  }
+  return byText;
+};
+
+// ---- Folder operations (superseded by tags, kept for the fallback) ----
 
 const mapFolder = (folder) => ({
   id: folder.id,
@@ -88,70 +229,6 @@ export const getFolders = async () => {
   return result;
 };
 
-export const createFolder = async (name) => {
-  const newFolder = {
-    id: `folder-${Date.now()}`,
-    name,
-    created_at: Date.now()
-  };
-
-  const { data, error } = await supabase
-    .from('folders')
-    .insert([newFolder])
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error creating folder:', error);
-    throw error;
-  }
-
-  invalidateCache('folders');
-  return mapFolder(data);
-};
-
-export const updateFolder = async (id, name) => {
-  const { data, error } = await supabase
-    .from('folders')
-    .update({ name, updated_at: Date.now() })
-    .eq('id', id)
-    .select()
-    .single();
-
-  if (error) {
-    console.error('Error updating folder:', error);
-    throw error;
-  }
-
-  invalidateCache('folders');
-  return mapFolder(data);
-};
-
-export const deleteFolder = async (id) => {
-  if (id === 'default') {
-    throw new Error('Cannot delete default folder');
-  }
-
-  // Move texts from deleted folder to default
-  await supabase
-    .from('texts')
-    .update({ folder_id: 'default' })
-    .eq('folder_id', id);
-
-  const { error } = await supabase
-    .from('folders')
-    .delete()
-    .eq('id', id);
-
-  if (error) {
-    console.error('Error deleting folder:', error);
-    throw error;
-  }
-
-  invalidateCache('folders');
-  invalidateCache('texts_all');
-};
-
 // ---- Text operations ----
 
 const mapText = (text) => ({
@@ -165,6 +242,7 @@ const mapText = (text) => ({
   musicXML: text.music_xml,
   stems: text.stems,
   bookmarks: text.bookmarks,
+  tagIds: text.tagIds || [],
   ultimateGuitarUrl: text.ultimate_guitar_url,
   soundsliceUrl: text.soundslice_url,
   folderId: text.folder_id,
@@ -172,28 +250,30 @@ const mapText = (text) => ({
   updatedAt: text.updated_at
 });
 
-export const getTexts = async (folderId = null) => {
-  const cacheKey = folderId ? `texts_${folderId}` : 'texts_all';
+export const getTexts = async () => {
+  const cacheKey = 'texts_all';
   const cached = getCache(cacheKey);
   if (cached && !cached.isStale) return cached.data;
 
-  let query = supabase
+  const { data, error } = await supabase
     .from('texts')
     .select('*')
     .order('created_at', { ascending: false });
-
-  if (folderId) {
-    query = query.eq('folder_id', folderId);
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     console.error('Error fetching texts:', error);
     return cached?.data || [];
   }
 
-  const result = data.map(mapText);
+  const tagsByText = await getTagsByText();
+  const result = data.map(row => {
+    const text = mapText(row);
+    // Before the migration the old folder stands in as the song's one tag
+    text.tagIds = tagsByText
+      ? (tagsByText[row.id] || [])
+      : (row.folder_id && row.folder_id !== 'default' ? [row.folder_id] : []);
+    return text;
+  });
   setCache(cacheKey, result);
   return result;
 };
@@ -215,36 +295,33 @@ export const getText = async (id) => {
   }
 
   const result = mapText(data);
+  const tagsByText = await getTagsByText();
+  result.tagIds = tagsByText
+    ? (tagsByText[data.id] || [])
+    : (data.folder_id && data.folder_id !== 'default' ? [data.folder_id] : []);
   setCache(cacheKey, result);
   return result;
 };
 
-export const createText = async (
+export const createText = async ({
   title,
   content,
-  folderId = 'default',
   artist = '',
   youtubeUrl = '',
-  strummingPattern = '',
-  imageData = '',
-  musicXML = '',
-  stems = [],
   ultimateGuitarUrl = '',
-  soundsliceUrl = ''
-) => {
+  soundsliceUrl = '',
+  tagIds = []
+}) => {
   const newText = {
     id: `text-${Date.now()}`,
     title,
     artist,
     content,
     youtube_url: youtubeUrl,
-    strumming_pattern: strummingPattern,
-    image_data: imageData,
-    music_xml: musicXML,
-    stems,
     ultimate_guitar_url: ultimateGuitarUrl,
     soundslice_url: soundsliceUrl,
-    folder_id: folderId,
+    // texts.folder_id is NOT NULL and no longer read; tags do the organising
+    folder_id: 'default',
     created_at: Date.now(),
     updated_at: Date.now()
   };
@@ -260,9 +337,13 @@ export const createText = async (
     throw error;
   }
 
+  if (tagIds.length > 0) {
+    await setTextTags(data.id, tagIds);
+  }
+
   const result = mapText(data);
+  result.tagIds = tagIds;
   invalidateCache('texts_all');
-  invalidateCache(`texts_${folderId}`);
   return result;
 };
 
@@ -283,7 +364,6 @@ export const updateText = async (id, updates) => {
   if (updates.bookmarks !== undefined) dbUpdates.bookmarks = updates.bookmarks;
   if (updates.ultimateGuitarUrl !== undefined) dbUpdates.ultimate_guitar_url = updates.ultimateGuitarUrl;
   if (updates.soundsliceUrl !== undefined) dbUpdates.soundslice_url = updates.soundsliceUrl;
-  if (updates.folderId !== undefined) dbUpdates.folder_id = updates.folderId;
 
   const { data, error } = await supabase
     .from('texts')
@@ -316,11 +396,4 @@ export const deleteText = async (id) => {
 
   invalidateCache(`text_${id}`);
   invalidateCache('texts_all');
-};
-
-export const moveText = async (id, folderId) => {
-  const result = await updateText(id, { folderId });
-  // Also invalidate folder-specific caches
-  invalidateCache('texts_all');
-  return result;
 };

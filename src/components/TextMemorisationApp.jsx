@@ -1,5 +1,4 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
-import { Dropzone } from 'dropzone';
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import AudioPlayer from 'osmd-audio-player';
 import { Flex, Button, IconButton, Slider as RadixSlider, Separator, Text, Tooltip } from '@radix-ui/themes';
@@ -36,6 +35,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [isMarkMode, setIsMarkMode] = useState(false);
   const [isFollowing, setIsFollowing] = useState(true);
   const [activeLine, setActiveLine] = useState(null);
+  const [stemSources, setStemSources] = useState(null); // pitch-shifted stand-ins, keyed by original src
 
   // The stem player element is mounted by the sidebar but driven by the transport bar
   const handlePlayerReady = useCallback((node) => setPlayer(node), []);
@@ -50,16 +50,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [currentTab, setCurrentTab] = useState('text'); // 'text' or 'music'
   const [musicXMLFile, setMusicXMLFile] = useState(textData?.musicXML || '');
   const [isPlayingMusic, setIsPlayingMusic] = useState(false);
-  const [uploadedImages, setUploadedImages] = useState(() => {
-    if (!textData?.imageData) return [];
-    try {
-      const parsed = JSON.parse(textData.imageData);
-      return Array.isArray(parsed) ? parsed : [parsed];
-    } catch {
-      // Old format - single base64 string
-      return textData.imageData ? [textData.imageData] : [];
-    }
-  });
   const scrollContainerRef = useRef(null);
   const osmdContainerRef = useRef(null);
   const osmdInstanceRef = useRef(null);
@@ -67,8 +57,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const timeoutRef = useRef(null);
   const countdownRef = useRef(null);
   const audioContextRef = useRef(null);
-  const dropzoneRef = useRef(null);
-  const dropzoneInstanceRef = useRef(null);
 
   // Metronome refs
   const metronomeWorkerRef = useRef(null);
@@ -335,6 +323,17 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     }]);
   };
 
+  const addBookmarkAt = (time) => {
+    // If the text is following along, name the mark after the line that is playing
+    const label = activeLine !== null ? labelForLine(activeLine) : '';
+    persistBookmarks([...bookmarks, {
+      id: `bm-${Date.now()}`,
+      time,
+      line: null,
+      label
+    }]);
+  };
+
   const deleteBookmark = (id) => {
     persistBookmarks(bookmarks.filter(bookmark => bookmark.id !== id));
   };
@@ -466,57 +465,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       nextTwelvelet();
     }
   };
-
-  // Initialize Dropzone
-  useEffect(() => {
-    if (!dropzoneRef.current || dropzoneInstanceRef.current) return;
-
-    Dropzone.autoDiscover = false;
-
-    const dropzone = new Dropzone(dropzoneRef.current, {
-      url: '#', // We're not uploading to a server
-      autoProcessQueue: false,
-      acceptedFiles: 'image/*',
-      maxFiles: null, // Allow unlimited files
-      addRemoveLinks: true,
-      dictDefaultMessage: 'Drop images here or click to upload',
-      init: function () {
-        this.on('addedfile', function (file) {
-          // Convert to base64
-          const reader = new FileReader();
-          reader.onloadend = async () => {
-            const base64data = reader.result;
-            const newImages = [...uploadedImages, base64data];
-            setUploadedImages(newImages);
-            // Save to Supabase if we have textData
-            if (textData?.id) {
-              await updateText(textData.id, { imageData: JSON.stringify(newImages) });
-            }
-          };
-          reader.readAsDataURL(file);
-        });
-
-        this.on('removedfile', async function (file) {
-          // Find and remove the corresponding image
-          const fileIndex = this.files.indexOf(file);
-          const newImages = uploadedImages.filter((_, index) => index !== fileIndex);
-          setUploadedImages(newImages);
-          if (textData?.id) {
-            await updateText(textData.id, { imageData: JSON.stringify(newImages) });
-          }
-        });
-      }
-    });
-
-    dropzoneInstanceRef.current = dropzone;
-
-    return () => {
-      if (dropzoneInstanceRef.current) {
-        dropzoneInstanceRef.current.destroy();
-        dropzoneInstanceRef.current = null;
-      }
-    };
-  }, [textData?.id]);
 
   // Initialize OpenSheetMusicDisplay when music XML is loaded
   useEffect(() => {
@@ -842,17 +790,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
                 <Separator orientation="vertical" size="1" />
 
-                {/* Backing Tracks toggle */}
-                <Button
-                  variant={isStemPlayerVisible ? 'solid' : 'soft'}
-                  color={isStemPlayerVisible ? 'blue' : 'gray'}
-                  size="2"
-                  onClick={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
-                  style={{ flexShrink: 0 }}
-                >
-                  Tracks
-                </Button>
-
                 {/* Reveal slider — text tab only */}
                 {currentTab === 'text' && (
                   <>
@@ -1074,20 +1011,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
               </div>
             )}
 
-            {/* Main Content Area with Stem Player Sidebar */}
+            {/* Main Content Area */}
             <div className="flex-1 flex overflow-hidden">
-              {/* Stem Player Sidebar - always mounted but conditionally visible */}
-              <StemPlayerWrapper
-                stems={stems}
-                setStems={setStems}
-                textId={textData?.id}
-                isDarkMode={isDarkMode}
-                isVisible={isStemPlayerVisible}
-                onStemsUpdate={onTextDataUpdate}
-                onPlayerReady={handlePlayerReady}
-              />
-
-              {/* Main Content */}
               <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Text Display */}
                 <div className={`flex-1 overflow-hidden relative transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
@@ -1191,101 +1116,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                           )}
                         </div>
 
-                        {/* Reference Material Section */}
-                        <div style={{
-                          marginTop: '3rem',
-                          breakBefore: 'column',
-                          pageBreakBefore: 'always',
-                          width: `${columnWidth * 8}px`
-                        }}>
-                          {/* Container for images and dropzone side-by-side */}
-                          <div style={{
-                            display: 'flex',
-                            flexDirection: 'row',
-                            gap: '2rem',
-                            alignItems: 'flex-start',
-                            width: '100%'
-                          }}>
-                            {/* Display uploaded images */}
-                            {uploadedImages.length > 0 && (
-                              <div style={{
-                                display: 'flex',
-                                flexDirection: 'row',
-                                gap: '2rem',
-                                flex: '1',
-                                alignItems: 'flex-start'
-                              }}>
-                                {uploadedImages.map((image, index) => (
-                                  <div key={index} style={{
-                                    flex: '1',
-                                    minWidth: `${columnWidth * 3}px`
-                                  }}>
-                                    {index === 0 && (
-                                      <div style={{
-                                        fontSize: '1em',
-                                        fontWeight: '500',
-                                        marginBottom: '1rem',
-                                        opacity: 0.7
-                                      }}>
-                                        Reference Images
-                                      </div>
-                                    )}
-                                    <img
-                                      src={image}
-                                      alt={`Reference material ${index + 1}`}
-                                      style={{
-                                        width: '100%',
-                                        height: 'calc(100vh - 180px)',
-                                        objectFit: 'contain',
-                                        border: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
-                                        borderRadius: '12px'
-                                      }}
-                                    />
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {/* Dropzone uploader - positioned to the right of images */}
-                            <div style={{
-                              display: 'flex',
-                              flexDirection: 'column',
-                              justifyContent: 'center',
-                              width: uploadedImages.length > 0 ? `${columnWidth * 2}px` : '100%',
-                              maxWidth: uploadedImages.length > 0 ? `${columnWidth * 2}px` : '600px',
-                              margin: uploadedImages.length === 0 ? '0 auto' : '0'
-                            }}>
-                              <div style={{
-                                fontSize: '1em',
-                                fontWeight: '500',
-                                marginBottom: '1rem',
-                                opacity: 0.7,
-                                textAlign: uploadedImages.length > 0 ? 'left' : 'center'
-                              }}>
-                                Upload Images
-                              </div>
-                              <form
-                                ref={dropzoneRef}
-                                className="dropzone"
-                                style={{
-                                  border: isDarkMode ? '2px dashed #4b5563' : '2px dashed #d1d5db',
-                                  borderRadius: '12px',
-                                  padding: '2rem',
-                                  textAlign: 'center',
-                                  cursor: 'pointer',
-                                  backgroundColor: isDarkMode ? '#1f2937' : '#f9fafb',
-                                  height: '240px',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
-                                  fontSize: '0.875rem',
-                                  color: isDarkMode ? '#d1d5db' : '#4b5563'
-                                }}
-                              >
-                              </form>
-                            </div>
-                          </div>
-                        </div>
                       </div>
                     </div>
                   )}
@@ -1419,6 +1249,18 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   )}
                 </div>
 
+                {/* Stems: mounted at all times so audio survives, shown on demand */}
+                <StemPlayerWrapper
+                  stems={stems}
+                  setStems={setStems}
+                  textId={textData?.id}
+                  isDarkMode={isDarkMode}
+                  isVisible={isStemPlayerVisible}
+                  onStemsUpdate={onTextDataUpdate}
+                  onPlayerReady={handlePlayerReady}
+                  stemSources={stemSources}
+                />
+
                 {/* Backing track transport: waveform, A-B loop and lyric bookmarks */}
                 <SongPlayer
                   player={player}
@@ -1431,6 +1273,10 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   onToggleFollowing={() => setIsFollowing(!isFollowing)}
                   onActiveLineChange={setActiveLine}
                   onDeleteBookmark={deleteBookmark}
+                  onAddBookmark={addBookmarkAt}
+                  isStemsPanelOpen={isStemPlayerVisible}
+                  onToggleStemsPanel={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
+                  onPitchSources={setStemSources}
                 />
 
                 {/* YouTube Video Container - Bottom of screen */}

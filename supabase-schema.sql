@@ -50,3 +50,47 @@ CREATE POLICY "Enable all access for texts" ON texts
 -- Until this column exists the app keeps bookmarks in the browser only.
 -- ---------------------------------------------------------------------------
 ALTER TABLE texts ADD COLUMN IF NOT EXISTS bookmarks JSONB DEFAULT '[]'::jsonb;
+
+-- ---------------------------------------------------------------------------
+-- Migration: tags replace folders
+--
+-- A song belongs to any number of tags instead of exactly one folder. The old
+-- folders table and texts.folder_id are left in place: new texts still write
+-- folder_id = 'default' to satisfy the NOT NULL constraint, and nothing reads
+-- it any more, so this migration is reversible.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS tags (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT DEFAULT EXTRACT(EPOCH FROM NOW()) * 1000
+);
+
+CREATE TABLE IF NOT EXISTS text_tags (
+  text_id TEXT NOT NULL REFERENCES texts(id) ON DELETE CASCADE,
+  tag_id TEXT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
+  PRIMARY KEY (text_id, tag_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_text_tags_tag_id ON text_tags(tag_id);
+
+-- Every folder except the catch-all becomes a tag, and each song keeps the
+-- folder it was in as its first tag
+INSERT INTO tags (id, name, created_at)
+SELECT id, name, created_at FROM folders WHERE id <> 'default'
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO text_tags (text_id, tag_id)
+SELECT id, folder_id FROM texts WHERE folder_id IS NOT NULL AND folder_id <> 'default'
+ON CONFLICT DO NOTHING;
+
+ALTER TABLE tags ENABLE ROW LEVEL SECURITY;
+ALTER TABLE text_tags ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable all access for tags" ON tags;
+CREATE POLICY "Enable all access for tags" ON tags
+  FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Enable all access for text_tags" ON text_tags;
+CREATE POLICY "Enable all access for text_tags" ON text_tags
+  FOR ALL USING (true) WITH CHECK (true);

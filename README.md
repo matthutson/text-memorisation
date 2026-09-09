@@ -5,7 +5,7 @@ A minimalist tool for learning text through progressive revelation, with folder 
 ## Features
 
 - **Progressive Text Revelation**: Gradually reveal text as you memorize it
-- **Folder Organization**: Organize your texts into custom folders
+- **Tags**: Organise songs with as many tags as you like
 - **Local Storage**: All data is stored locally in your browser
 - **Auto-Advance**: Automatic column scrolling with adjustable speed
 - **Customizable Display**: Adjust font size, column width, and reveal percentage
@@ -35,10 +35,10 @@ npm run build
 
 ### Home Page
 
-1. **Create Folders**: Click the "+" button next to "Folders" in the sidebar to create new folders
-2. **Add Texts**: Click "New Text" to add a new text to memorize
-3. **Organize**: Use the dropdown on each text card to move it to a different folder
-4. **Practice**: Click "Practice" on any text card to start practicing
+1. **Create tags**: Click "+" next to "Tags" in the sidebar. A song can carry any number of tags.
+2. **Add songs**: Click "New song" and give it a title, the words, and any tags.
+3. **Find things**: Search matches titles, artists and tag names. Sort by name or by most recently added.
+4. **Practice**: Click "Practice" on any card.
 
 ### Practice Mode
 

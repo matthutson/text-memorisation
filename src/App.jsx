@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Theme } from '@radix-ui/themes';
 import HomePage from './components/HomePage';
 import TextMemorisationApp from './components/TextMemorisationApp';
-import { getText, getCachedFolders } from './utils/storage';
+import { getText, getCachedTags } from './utils/storage';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -38,17 +38,18 @@ class ErrorBoundary extends React.Component {
 }
 
 // URL structure:
-//   /                  -> home, all texts
-//   /folder/<folderId> -> home, folder selected
-//   /song/<songId>     -> practice view for that song
+//   /                -> home, all songs
+//   /tag/<tagId>     -> home, filtered to one tag
+//   /song/<songId>   -> practice view for that song
+// /folder/<id> still resolves, so links made before tags keep working.
 const parseRoute = (pathname) => {
   const song = pathname.match(/^\/song\/([^/]+)\/?$/);
   if (song) return { view: 'practice', songId: decodeURIComponent(song[1]) };
 
-  const folder = pathname.match(/^\/folder\/([^/]+)\/?$/);
-  if (folder) return { view: 'home', folderId: decodeURIComponent(folder[1]) };
+  const tag = pathname.match(/^\/(?:tag|folder)\/([^/]+)\/?$/);
+  if (tag) return { view: 'home', tagId: decodeURIComponent(tag[1]) };
 
-  return { view: 'home', folderId: 'all' };
+  return { view: 'home', tagId: 'all' };
 };
 
 function App() {
@@ -57,7 +58,7 @@ function App() {
   const [notFoundSongId, setNotFoundSongId] = useState(null);
   const [isLoading, setIsLoading] = useState(() => {
     // Skip loading screen if we have cached data
-    return !getCachedFolders();
+    return !getCachedTags();
   });
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem('darkMode');
@@ -137,21 +138,19 @@ function App() {
     navigate(`/song/${encodeURIComponent(text.id)}`);
   };
 
-  const handleSelectFolder = (folderId) => {
-    navigate(folderId === 'all' ? '/' : `/folder/${encodeURIComponent(folderId)}`);
+  const handleSelectTag = (tagId) => {
+    navigate(tagId === 'all' ? '/' : `/tag/${encodeURIComponent(tagId)}`);
   };
 
   const handleExitPractice = () => {
     // If we navigated here within the app, going back returns to the exact
-    // home/folder view the user came from; on a deep link, fall back to the
-    // song's folder
+    // home view the user came from; on a deep link, fall back to the song's
+    // first tag
     if (window.history.state?.appNav) {
       window.history.back();
     } else {
-      const folderId = currentText?.folderId;
-      navigate(folderId && folderId !== 'default' ? `/folder/${encodeURIComponent(folderId)}` : '/', {
-        replace: true,
-      });
+      const tagId = currentText?.tagIds?.[0];
+      navigate(tagId ? `/tag/${encodeURIComponent(tagId)}` : '/', { replace: true });
     }
     // currentText stays cached so revisiting the same song skips the refetch
   };
@@ -208,13 +207,13 @@ function App() {
   }
 
   return (
-    <Theme appearance={isDarkMode ? 'dark' : 'light'} accentColor="gray" radius="medium" scaling="100%">
+    <Theme appearance={isDarkMode ? 'dark' : 'light'} accentColor="blue" radius="medium" scaling="100%">
     <ErrorBoundary>
       {!isPractice ? (
         <HomePage
           onPracticeText={handlePracticeText}
-          selectedFolderId={route.folderId}
-          onSelectFolder={handleSelectFolder}
+          selectedTagId={route.tagId}
+          onSelectTag={handleSelectTag}
           isDarkMode={isDarkMode}
           onToggleDarkMode={toggleDarkMode}
         />
