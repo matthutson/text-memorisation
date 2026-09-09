@@ -81,3 +81,42 @@ unavailable. The rest of the app is unaffected.
 Songs are uploaded to the `stems` bucket first and streamed to LALAL.AI from
 there, because Vercel caps request bodies at 4.5MB. The finished stems are
 copied back into the bucket, since LALAL.AI's own result URLs expire.
+
+## Backing tracks from a YouTube link
+
+Paste a YouTube URL into a song and tick "Fetch this track and split it into
+vocals and backing". The song is saved straight away and the work is queued.
+
+The download cannot run on Vercel. YouTube refuses datacenter addresses: yt-dlp
+from a cloud host gets `429 Too Many Requests` and then "Sign in to confirm
+you're not a bot". From a home connection it just works, so the fetcher runs on
+your own machine and everything else stays in the app.
+
+### One-time setup
+
+```bash
+brew install yt-dlp ffmpeg
+```
+
+Run the backing track jobs section of `supabase-schema.sql`, then create a
+`.env` in the repo with the same two values the app uses:
+
+```
+VITE_SUPABASE_URL=https://<project>.supabase.co
+VITE_SUPABASE_ANON_KEY=<anon key>
+```
+
+### Running it
+
+```bash
+npm run fetch-songs             # watch for new jobs
+npm run fetch-songs -- --once   # take one job and stop
+```
+
+Leave it running and songs fill themselves in: it downloads the audio, sends it
+to the app's own split endpoints (so the LALAL.AI key stays on the server) and
+attaches the finished stems. Progress shows in the Tracks panel of the song. If
+your machine is off, the job simply waits until the fetcher is next running.
+
+To have it start at login, point a launchd agent at `npm run fetch-songs` in
+this directory.

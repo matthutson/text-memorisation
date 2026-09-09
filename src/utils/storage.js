@@ -397,3 +397,55 @@ export const deleteText = async (id) => {
   invalidateCache(`text_${id}`);
   invalidateCache('texts_all');
 };
+
+// ---- Backing track jobs ----
+//
+// A job asks for a YouTube link to be turned into stems. The work happens in
+// scripts/song-fetcher.mjs, running on a machine YouTube will talk to.
+
+const mapJob = (job) => ({
+  id: job.id,
+  textId: job.text_id,
+  sourceUrl: job.source_url,
+  status: job.status,
+  stage: job.stage,
+  message: job.message,
+  createdAt: job.created_at,
+  updatedAt: job.updated_at
+});
+
+export const queueBackingTrack = async (textId, sourceUrl) => {
+  const job = {
+    id: `job-${Date.now()}`,
+    text_id: textId,
+    source_url: sourceUrl,
+    status: 'queued',
+    stage: 'Waiting for the helper',
+    created_at: Date.now(),
+    updated_at: Date.now()
+  };
+
+  const { data, error } = await supabase.from('jobs').insert([job]).select().single();
+
+  if (error) {
+    console.error('Error queueing backing track:', error);
+    throw error;
+  }
+  return mapJob(data);
+};
+
+/** The most recent job for a song, or null */
+export const getJobForText = async (textId) => {
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('text_id', textId)
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (error) {
+    if (!isMissingTable(error)) console.error('Error fetching job:', error);
+    return null;
+  }
+  return data.length ? mapJob(data[0]) : null;
+};

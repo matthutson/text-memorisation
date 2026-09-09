@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Badge, Box, Button, Flex, IconButton, Progress, Slider, Text } from '@radix-ui/themes';
 import { supabase } from '../utils/supabase';
-import { updateText } from '../utils/storage';
+import { getJobForText, updateText } from '../utils/storage';
 import { getMinutesLeft, splitIntoStems } from '../utils/stemSplit';
 
 const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisible = true, engine }) => {
@@ -12,6 +12,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisi
     const [splitError, setSplitError] = useState(null);
     const [minutesLeft, setMinutesLeft] = useState(null); // null until the API answers, and when it isn't configured
     const [levels, setLevels] = useState({}); // src -> { volume, muted }
+    const [job, setJob] = useState(null); // the backing track fetch, when one is running
 
     const levelFor = (stem) => levels[stem.src] || { volume: stem.volume ?? 1, muted: !!stem.muted };
 
@@ -69,6 +70,25 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisi
         checkBucket();
         getMinutesLeft().then(setMinutesLeft);
     }, []);
+
+    // While a YouTube fetch is queued or running, follow it here
+    useEffect(() => {
+        if (!textId) return undefined;
+        let cancelled = false;
+        let timer;
+
+        const poll = async () => {
+            const latest = await getJobForText(textId);
+            if (cancelled) return;
+            setJob(latest);
+            if (latest && (latest.status === 'queued' || latest.status === 'running')) {
+                timer = setTimeout(poll, 8000);
+            }
+        };
+        poll();
+
+        return () => { cancelled = true; clearTimeout(timer); };
+    }, [textId]);
 
     const handleFileUpload = async (event) => {
         const files = Array.from(event.target.files);
@@ -255,6 +275,24 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisi
                 overflowY: 'auto'
             }}
         >
+            {job && job.status !== 'done' && (
+                <Box px="4" pt="3">
+                    <Flex align="center" gap="2">
+                        <Badge color={job.status === 'error' ? 'red' : 'blue'} variant="soft">
+                            {job.status === 'error' ? 'Fetch failed' : 'Fetching from YouTube'}
+                        </Badge>
+                        <Text size="1" color="gray">
+                            {job.status === 'error' ? job.message : job.stage}
+                        </Text>
+                    </Flex>
+                    {job.status === 'queued' && (
+                        <Text as="div" size="1" color="gray" mt="1">
+                            Waiting for the fetcher on your machine. Start it with npm run fetch-songs.
+                        </Text>
+                    )}
+                </Box>
+            )}
+
             <Flex direction={{ initial: 'column', md: 'row' }} gap="5" p="4" align="start">
                 {/* Add existing stems */}
                 <Flex direction="column" gap="2" style={{ minWidth: 200 }}>

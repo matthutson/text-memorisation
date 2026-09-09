@@ -94,3 +94,30 @@ CREATE POLICY "Enable all access for tags" ON tags
 DROP POLICY IF EXISTS "Enable all access for text_tags" ON text_tags;
 CREATE POLICY "Enable all access for text_tags" ON text_tags
   FOR ALL USING (true) WITH CHECK (true);
+
+-- ---------------------------------------------------------------------------
+-- Migration: backing track jobs
+--
+-- Pasting a YouTube link on a song queues a job here. YouTube blocks datacenter
+-- addresses, so the download cannot run on Vercel; a helper on your own machine
+-- (scripts/song-fetcher.mjs) picks jobs up, downloads with yt-dlp, splits the
+-- stems through the app's API and attaches them to the song.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS jobs (
+  id TEXT PRIMARY KEY,
+  text_id TEXT NOT NULL REFERENCES texts(id) ON DELETE CASCADE,
+  source_url TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'queued', -- queued | running | done | error
+  stage TEXT DEFAULT '',                 -- what the helper is doing right now
+  message TEXT DEFAULT '',               -- the error, when there is one
+  created_at BIGINT NOT NULL,
+  updated_at BIGINT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status, created_at);
+
+ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Enable all access for jobs" ON jobs;
+CREATE POLICY "Enable all access for jobs" ON jobs
+  FOR ALL USING (true) WITH CHECK (true);

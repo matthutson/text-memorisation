@@ -27,7 +27,8 @@ import {
   updateTag,
   deleteTag,
   getCachedTags,
-  getCachedTexts
+  getCachedTexts,
+  queueBackingTrack
 } from '../utils/storage';
 import QuillEditor from './QuillEditor';
 
@@ -71,8 +72,11 @@ const emptyDraft = {
   ultimateGuitarUrl: '',
   soundsliceUrl: '',
   content: '',
-  tagIds: []
+  tagIds: [],
+  fetchBackingTrack: false
 };
+
+const isYouTubeLink = (url) => /(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts)/.test(url || '');
 
 export default function HomePage({ onPracticeText, selectedTagId = 'all', onSelectTag, isDarkMode, onToggleDarkMode }) {
   const [tags, setTags] = useState(() => getCachedTags() || []);
@@ -157,7 +161,8 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
       ultimateGuitarUrl: song.ultimateGuitarUrl || '',
       soundsliceUrl: song.soundsliceUrl || '',
       content: song.content || '',
-      tagIds: song.tagIds || []
+      tagIds: song.tagIds || [],
+      fetchBackingTrack: false
     });
     setIsSongDialogOpen(true);
   };
@@ -175,8 +180,11 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
         content: draft.content
       });
       await withTagErrors(() => setTextTags(editingSong.id, draft.tagIds));
+      if (draft.fetchBackingTrack && isYouTubeLink(draft.youtubeUrl)) {
+        await requestBackingTrack(editingSong.id, draft.youtubeUrl.trim());
+      }
     } else {
-      await createText({
+      const created = await createText({
         title: draft.title.trim(),
         content: draft.content,
         artist: draft.artist.trim(),
@@ -185,12 +193,28 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
         soundsliceUrl: draft.soundsliceUrl.trim(),
         tagIds: draft.tagIds
       });
+      if (draft.fetchBackingTrack && isYouTubeLink(draft.youtubeUrl)) {
+        await requestBackingTrack(created.id, draft.youtubeUrl.trim());
+      }
     }
 
     setIsSongDialogOpen(false);
     setEditingSong(null);
     setDraft(emptyDraft);
     await loadData();
+  };
+
+  // The download runs on your own machine, so this only queues the work
+  const requestBackingTrack = async (textId, url) => {
+    try {
+      await queueBackingTrack(textId, url);
+    } catch (error) {
+      console.error('[HomePage] Could not queue the backing track:', error);
+      alert(
+        'Saved the song, but could not queue the backing track. If this database has not had ' +
+        'the backing track jobs migration run yet, apply that section of supabase-schema.sql.'
+      );
+    }
   };
 
   const removeSong = async (song) => {
@@ -555,12 +579,29 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
               value={draft.artist}
               onChange={(event) => setDraft({ ...draft, artist: event.target.value })}
             />
-            <TextField.Root
-              size="3"
-              placeholder="YouTube URL (optional)"
-              value={draft.youtubeUrl}
-              onChange={(event) => setDraft({ ...draft, youtubeUrl: event.target.value })}
-            />
+            <Box>
+              <TextField.Root
+                size="3"
+                placeholder="YouTube URL (optional)"
+                value={draft.youtubeUrl}
+                onChange={(event) => setDraft(current => ({
+                  ...current,
+                  youtubeUrl: event.target.value,
+                  // Offer the fetch as soon as the link looks right, for new songs
+                  fetchBackingTrack: !editingSong && isYouTubeLink(event.target.value)
+                }))}
+              />
+              {isYouTubeLink(draft.youtubeUrl) && (
+                <Text as="label" size="2" mt="2" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <input
+                    type="checkbox"
+                    checked={draft.fetchBackingTrack}
+                    onChange={(event) => setDraft({ ...draft, fetchBackingTrack: event.target.checked })}
+                  />
+                  Fetch this track and split it into vocals and backing
+                </Text>
+              )}
+            </Box>
             <Grid columns={{ initial: '1', sm: '2' }} gap="3">
               <TextField.Root
                 size="3"
