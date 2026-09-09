@@ -2,11 +2,15 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import '../stemplayer/index.js';
 import { supabase } from '../utils/supabase';
 import { updateText } from '../utils/storage';
+import { getMinutesLeft, splitIntoStems } from '../utils/stemSplit';
 
 const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUpdate, isVisible = true, onPlayerReady }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [bucketStatus, setBucketStatus] = useState('checking'); // 'checking', 'ready', 'error'
     const [bucketError, setBucketError] = useState(null);
+    const [splitProgress, setSplitProgress] = useState(null); // { percent, message }
+    const [splitError, setSplitError] = useState(null);
+    const [minutesLeft, setMinutesLeft] = useState(null); // null until the API answers, and when it isn't configured
     const playerRef = useRef(null);
 
     // Hand the player element to the transport bar, which owns playback,
@@ -61,6 +65,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
             }
         };
         checkBucket();
+        getMinutesLeft().then(setMinutesLeft);
     }, []);
 
     const handleFileUpload = async (event) => {
@@ -168,6 +173,39 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
         }
     };
 
+    // Send a full song to LALAL.AI and keep the vocal and backing stems
+    const handleSplitUpload = async (event) => {
+        const file = event.target.files[0];
+        event.target.value = '';
+        if (!file) return;
+
+        if (!textId) {
+            alert('Save this song before splitting a track for it.');
+            return;
+        }
+
+        setSplitError(null);
+        setSplitProgress({ percent: 0, message: 'Starting…' });
+
+        try {
+            const newStems = await splitIntoStems(file, {
+                textId,
+                onProgress: ({ percent, message }) => setSplitProgress({ percent, message })
+            });
+
+            const updatedStems = [...stems, ...newStems];
+            setStems(updatedStems);
+            await updateText(textId, { stems: updatedStems });
+            if (onStemsUpdate) await onStemsUpdate();
+            getMinutesLeft().then(setMinutesLeft);
+        } catch (error) {
+            console.error('[StemPlayerWrapper] Split failed:', error);
+            setSplitError(error.message);
+        } finally {
+            setSplitProgress(null);
+        }
+    };
+
     const handleClearStems = async () => {
         if (window.confirm('Are you sure you want to remove all stems? This will delete the files permanently.')) {
             setIsUploading(true);
@@ -257,6 +295,53 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, isDarkMode, onStemsUp
                         >
                             Clear All Stems
                         </button>
+                    )}
+                </div>
+
+                {/* Split a full song into vocal and backing stems */}
+                <div className="mb-2">
+                    <div className="flex justify-between items-center mb-2">
+                        <label className={`text-xs uppercase tracking-wider font-medium ${isDarkMode ? 'text-gray-400' : 'text-gray-500'
+                            }`}>Split a Song</label>
+                        <span className={`text-xs font-mono ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                            {minutesLeft === null ? 'Not set up' : `${Math.round(minutesLeft)} min left`}
+                        </span>
+                    </div>
+
+                    <p className={`text-xs mb-2 ${isDarkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                        Separates the vocal from the backing so you can practise against either.
+                    </p>
+
+                    <input
+                        type="file"
+                        accept="audio/*"
+                        onChange={handleSplitUpload}
+                        disabled={!!splitProgress || isUploading}
+                        className={`block w-full text-xs file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:text-xs file:font-medium file:uppercase file:tracking-wider cursor-pointer ${isDarkMode
+                            ? 'text-gray-300 file:bg-gray-800 file:text-white hover:file:bg-gray-700'
+                            : 'text-gray-600 file:bg-gray-200 file:text-black hover:file:bg-gray-300'
+                            } ${splitProgress ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    />
+
+                    {splitProgress && (
+                        <div className="mt-3">
+                            <div className={`h-1 rounded overflow-hidden ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`}>
+                                <div
+                                    className="h-full bg-blue-500 transition-all"
+                                    style={{ width: `${splitProgress.percent}%` }}
+                                />
+                            </div>
+                            <div className={`mt-1 text-xs ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                {splitProgress.message}
+                            </div>
+                        </div>
+                    )}
+
+                    {splitError && (
+                        <div className={`mt-3 p-2 rounded text-xs ${isDarkMode ? 'bg-red-900/30 text-red-400' : 'bg-red-50 text-red-700'
+                            }`}>
+                            {splitError}
+                        </div>
                     )}
                 </div>
 

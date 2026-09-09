@@ -59,3 +59,25 @@ All data is stored in your browser's localStorage. Your texts and folders will p
 - Vite
 - LocalStorage API
 - Custom CSS utilities (Tailwind-inspired)
+
+## Splitting a song into stems
+
+The Tracks panel can send a song to [LALAL.AI](https://www.lalal.ai/) and get the
+vocal and the backing back as separate stems.
+
+The licence key stays on the server, in the Vercel functions under `api/lalal/`,
+because a key in the browser bundle could be read and spent by anyone visiting
+the site. To enable the feature, set these Vercel environment variables:
+
+| Variable | Purpose |
+| --- | --- |
+| `LALAL_LICENSE_KEY` | Your LALAL.AI licence key |
+| `VITE_SUPABASE_URL` | Already set for the app; the functions reuse it to save finished stems |
+| `VITE_SUPABASE_ANON_KEY` | As above |
+
+Until `LALAL_LICENSE_KEY` is set the panel shows "Not set up" and splitting is
+unavailable. The rest of the app is unaffected.
+
+Songs are uploaded to the `stems` bucket first and streamed to LALAL.AI from
+there, because Vercel caps request bodies at 4.5MB. The finished stems are
+copied back into the bucket, since LALAL.AI's own result URLs expire.
