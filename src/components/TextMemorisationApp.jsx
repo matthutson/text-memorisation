@@ -976,6 +976,22 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       </div>
                       <Text size="2" style={{ width: 40, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{visibility}%</Text>
                     </Flex>
+
+                    {/* How many words survive the hiding, so it sits with the slider */}
+                    <Flex align="center" gap="2" shrink="0">
+                      <Tooltip content="Words kept visible at the start of every line, however far the slider goes">
+                        <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Keep</Text>
+                      </Tooltip>
+                      <IconButton variant="outline" size="2" onClick={() => setAnchorWords(Math.max(0, anchorWords - 1))}>
+                        <span style={{ fontSize: 15, fontWeight: 'bold', lineHeight: 1 }}>−</span>
+                      </IconButton>
+                      <Text size="2" style={{ width: 52, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        {anchorWords === 0 ? 'none' : `${anchorWords} word${anchorWords > 1 ? 's' : ''}`}
+                      </Text>
+                      <IconButton variant="outline" size="2" onClick={() => setAnchorWords(Math.min(5, anchorWords + 1))}>
+                        <span style={{ fontSize: 15, fontWeight: 'bold', lineHeight: 1 }}>+</span>
+                      </IconButton>
+                    </Flex>
                   </>
                 )}
 
@@ -1042,22 +1058,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     </IconButton>
                     <Text size="2" style={{ width: 24, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{fontSize}</Text>
                     <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setFontSize(Math.min(40, fontSize + 2)); }}>
-                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
-                    </IconButton>
-                  </Flex>
-
-                  <Separator orientation="vertical" size="1" />
-
-                  {/* Line-start cue — words always kept visible at the start of each line */}
-                  <Flex align="center" gap="2" shrink="0">
-                    <Tooltip content="Words always shown at the start of every line">
-                      <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Cue</Text>
-                    </Tooltip>
-                    <IconButton variant="outline" size="3" onClick={() => setAnchorWords(Math.max(0, anchorWords - 1))}>
-                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
-                    </IconButton>
-                    <Text size="2" style={{ width: 24, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{anchorWords}</Text>
-                    <IconButton variant="outline" size="3" onClick={() => setAnchorWords(Math.min(5, anchorWords + 1))}>
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
                     </IconButton>
                   </Flex>
