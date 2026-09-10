@@ -65,8 +65,15 @@ All data is stored in your browser's localStorage. Your texts and folders will p
 The Tracks panel offers both routes to a backing track. **From a file** sends an
 audio file you already have to [LALAL.AI](https://www.lalal.ai/), which runs in
 the cloud and spends prepaid minutes. **From a link** queues the song for
-StemDeck on your own machine, which is free but needs that machine awake. Both
-give back the vocal and the backing as separate mp3 stems.
+StemDeck on your own machine, which is free but needs that machine awake.
+
+LALAL.AI is asked for its lead and back vocal splitter, so a song comes back as
+three mp3 stems rather than two: the instrumental, the backing vocals, and the
+lead vocal. Mute the lead and the harmonies keep singing. The three add back up
+to the original mix, which is why the fourth track LALAL.AI returns, the mix
+with only the lead removed, is discarded: it would play the instrumental twice.
+
+StemDeck returns the pair its Demucs model produces, the backing and the vocal.
 
 The licence key stays on the server, in the Vercel functions under `api/lalal/`,
 because a key in the browser bundle could be read and spent by anyone visiting

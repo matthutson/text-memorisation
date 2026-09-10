@@ -27,6 +27,21 @@ const safeName = (name) =>
 
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
+// The tracks the lead and back vocal splitter returns, and what to call them.
+// Together these three are the whole song: instrumental, lead, harmonies.
+const PARTS = {
+  no_vocals: { name: 'Instrumental', file: 'instrumental', color: '#3b82f6', order: 0 },
+  'vocals@1': { name: 'Backing vocals', file: 'backing-vocals', color: '#8b5cf6', order: 1 },
+  'vocals@0': { name: 'Lead vocal', file: 'lead-vocal', color: '#f59e0b', order: 2 },
+  // A song the splitter finds only one voice in comes back the plain way
+  vocals: { name: 'Vocals', file: 'vocals', color: '#f59e0b', order: 2 }
+};
+
+// The mixer reads top to bottom, so put the backing first and the lead last
+const inMixOrder = (tracks) => tracks
+  .filter(track => PARTS[track.label])
+  .sort((a, b) => PARTS[a.label].order - PARTS[b.label].order);
+
 /** Processing minutes left on the licence, or null when not configured */
 export const getMinutesLeft = async () => {
   try {
@@ -62,11 +77,15 @@ export const splitIntoStems = async (file, { textId, onProgress = () => {} } = {
     const uploaded = await post('upload', { url: sourceUrl, filename: file.name });
 
     onProgress({ stage: 'splitting', percent: 20, message: 'Splitting…' });
-    // mp3 rather than the source format: a wav backing track is twenty times
-    // the size and has to be downloaded again every time the song is opened.
+    // 'lead_back' is the lead and back vocal splitter: the lead voice and the
+    // harmonies come back separately, so the harmonies can be sung along with
+    // while the lead is muted. mp3 rather than the source format, because a wav
+    // backing track is twenty times the size and is downloaded every time the
+    // song is opened.
     const { task_id: taskId } = await post('split', {
       source_id: uploaded.id,
       stem: 'vocals',
+      multivocal: 'lead_back',
       encoder_format: 'mp3'
     });
 
@@ -97,21 +116,25 @@ export const splitIntoStems = async (file, { textId, onProgress = () => {} } = {
     onProgress({ stage: 'saving', percent: 85, message: 'Saving the stems…' });
     const base = file.name.replace(/\.[^/.]+$/, '');
     const stems = [];
-    for (const track of tracks) {
-      const isBacking = track.type === 'back';
-      const label = `${base} — ${isBacking ? 'Backing' : 'Vocals'}`;
-      const path = `${textId}/${Date.now()}-${safeName(`${base}-${isBacking ? 'backing' : 'vocals'}.mp3`)}`;
-
+    // 'mix_no_lead' also comes back: the mix with only the lead taken out. It
+    // is the instrumental and the harmonies already added together, so keeping
+    // it would play the instrumental twice with every fader up. Muting the lead
+    // gives the same thing.
+    for (const track of inMixOrder(tracks)) {
+      const part = PARTS[track.label];
+      const path = `${textId}/${Date.now()}-${safeName(`${base}-${part.file}.mp3`)}`;
       const saved = await post('import', { url: track.url, path });
       stems.push({
-        label,
+        label: `${base} — ${part.name}`,
         src: saved.publicUrl,
         volume: 1.0,
         muted: false,
-        color: isBacking ? '#3b82f6' : '#f59e0b',
+        color: part.color,
         storagePath: saved.storagePath
       });
     }
+
+    if (!stems.length) throw new Error('The split returned no tracks we recognise');
 
     onProgress({ stage: 'done', percent: 100, message: 'Done' });
     return stems;
