@@ -43,6 +43,13 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [jumpToken, setJumpToken] = useState(0); // bumped when a bookmark asks for a jump
   // The transport bar owns playback; the mixer needs the same engine
   const handleEngineReady = useCallback((instance) => setEngine(instance), []);
+  // Bookmarks say exactly where a line falls, so where they exist they steer.
+  // Failing that, a loaded track can still pace the scroll by its own length.
+  const isBookmarkDriven = isFollowing && bookmarks.length > 0;
+  const isTrackTimed = !!engine?.duration && !isBookmarkDriven;
+  // A song that already fits the window has nothing to scroll, and saying so
+  // is better than a button that looks broken
+  const [hasOverflow, setHasOverflow] = useState(false);
   const [columnWidth, setColumnWidth] = useState(() => numberOr(saved.columnWidth, window.innerWidth < 768 ? 100 : 160, { min: 60, max: 2000 }));
   // Size the text to fill the window. A song sized by hand keeps that size.
   const [autoFit, setAutoFit] = useState(() => boolOr(saved.autoFit, true));
@@ -853,8 +860,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
     if (countdownRef.current) cancelAnimationFrame(countdownRef.current);
 
-    const audioIsDriving = isFollowing && bookmarks.length > 0;
-    if (!isAutoAdvancing || audioIsDriving) {
+    if (!isAutoAdvancing || isBookmarkDriven || isTrackTimed) {
       setCountdownProgress(100);
       return;
     }
@@ -901,7 +907,34 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       if (timeoutRef.current) clearTimeout(timeoutRef.current);
       if (countdownRef.current) cancelAnimationFrame(countdownRef.current);
     };
-  }, [isAutoAdvancing, autoScrollSpeed, columnWidth, scrollPosition, isFollowing, bookmarks.length]);
+  }, [isAutoAdvancing, autoScrollSpeed, columnWidth, scrollPosition, isBookmarkDriven, isTrackTimed]);
+
+  // Auto-scroll paced by the track itself: the first word sits at the start of
+  // the recording and the last at the end, so the words arrive as they are
+  // sung without anyone having to pick a speed. Bookmarks are more exact where
+  // they exist, so they still win.
+  useEffect(() => {
+    if (!isAutoAdvancing || !isTrackTimed) return undefined;
+
+    let frame;
+    const follow = () => {
+      const container = scrollContainerRef.current;
+      const duration = engine?.duration || 0;
+      if (container && duration > 0) {
+        const progress = Math.min(1, Math.max(0, engine.currentTime / duration));
+        const furthest = container.scrollWidth - container.clientWidth;
+        setHasOverflow(furthest > 4);
+        const target = Math.round(progress * furthest);
+        // Only nudge when it has actually moved, so a hand on the page is not
+        // fought over every frame
+        if (Math.abs(container.scrollLeft - target) > 1) container.scrollLeft = target;
+        setCountdownProgress(progress * 100);
+      }
+      frame = requestAnimationFrame(follow);
+    };
+    frame = requestAnimationFrame(follow);
+    return () => cancelAnimationFrame(frame);
+  }, [isAutoAdvancing, isTrackTimed, engine]);
 
 
   return (
@@ -1149,7 +1182,15 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     >
                       {isAutoAdvancing ? 'Stop' : 'Auto'}
                     </Button>
-                    {isAutoAdvancing && (
+                    {isAutoAdvancing && isTrackTimed && (
+                      <Text size="1" color="gray">
+                        {hasOverflow ? 'Paced by the track' : 'The whole song already fits'}
+                      </Text>
+                    )}
+                    {isAutoAdvancing && isBookmarkDriven && (
+                      <Text size="1" color="gray">Following the bookmarks</Text>
+                    )}
+                    {isAutoAdvancing && !isTrackTimed && !isBookmarkDriven && (
                       <>
                         <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Speed</Text>
                         <div style={{ width: 80 }}>
