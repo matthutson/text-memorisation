@@ -29,6 +29,9 @@ const writeStore = (store) => {
   }
 };
 
+/** Everything remembered about every song, for when many are needed at once */
+export const loadAllSettings = () => readStore();
+
 /** Everything remembered about one song. An unknown song gives an empty object. */
 export const loadSettings = (songId) => {
   if (!songId) return {};

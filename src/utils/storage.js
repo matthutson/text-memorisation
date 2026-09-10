@@ -352,6 +352,14 @@ export const createText = async ({
   return result;
 };
 
+/**
+ * A column the app knows about but the database has not had added yet. The two
+ * newest features work without their migration by keeping what they know in
+ * the browser, so this is worth telling apart from a real failure.
+ */
+export const isMissingColumn = (error) =>
+  error?.code === '42703' || /column .* does not exist/i.test(error?.message || '');
+
 export const updateText = async (id, updates) => {
   // Convert camelCase to snake_case for Supabase
   const dbUpdates = {

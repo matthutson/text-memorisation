@@ -28,9 +28,11 @@ import {
   deleteTag,
   getCachedTags,
   getCachedTexts,
-  queueBackingTrack
+  queueBackingTrack,
+  isMissingColumn
 } from '../utils/storage';
 import QuillEditor from './QuillEditor';
+import { loadAllSettings, saveSettings } from '../utils/practiceSettings';
 
 const SORT_STORAGE_KEY = 'songSort';
 const SORTS = {
@@ -125,10 +127,33 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
 
   const [tagDialog, setTagDialog] = useState(null); // { mode: 'new' | 'edit', id, name }
 
+  // A status the database cannot hold yet lives in this browser, so bring
+  // those back over the songs as they load
+  const withLocalStatus = (list) => {
+    const local = loadAllSettings();
+    return list.map(song => (
+      song.status && song.status !== 'new' ? song : { ...song, status: local[song.id]?.status || song.status }
+    ));
+  };
+
+  // A status kept in this browser moves up to the song once the column exists.
+  // The first refusal means it still does not, so there is no point in more.
+  const promoteLocalStatuses = async (list) => {
+    const local = loadAllSettings();
+    const waiting = list.filter(song => local[song.id]?.status && local[song.id].status !== song.status);
+    for (const song of waiting) {
+      try {
+        await updateText(song.id, { status: local[song.id].status });
+      } catch {
+        return;
+      }
+    }
+  };
+
   const loadData = async () => {
     const [tagsData, songsData] = await Promise.all([getTags(), getTexts()]);
     setTags(tagsData);
-    setSongs(songsData);
+    setSongs(withLocalStatus(songsData));
   };
 
   // First load: state is set from the promise, not synchronously in the effect
@@ -137,7 +162,8 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
     Promise.all([getTags(), getTexts()]).then(([tagsData, songsData]) => {
       if (cancelled) return;
       setTags(tagsData);
-      setSongs(songsData);
+      setSongs(withLocalStatus(songsData));
+      promoteLocalStatuses(songsData);
     });
     return () => { cancelled = true; };
   }, []);
@@ -282,12 +308,14 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
     try {
       await updateText(song.id, { status: next });
     } catch (error) {
+      // Without its column the status is kept in this browser rather than lost
+      if (isMissingColumn(error)) {
+        saveSettings(song.id, { status: next });
+        return;
+      }
       console.error('[HomePage] Could not save the status:', error);
       setSongs(list => list.map(item => item.id === song.id ? { ...item, status: previous } : item));
-      alert(
-        'Could not save the status. If this database has not had the song status migration run yet, ' +
-        'apply the last section of supabase-schema.sql and try again.'
-      );
+      alert('Could not save the status.');
     }
   };
 

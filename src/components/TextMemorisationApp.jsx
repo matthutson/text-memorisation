@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import AudioPlayer from 'osmd-audio-player';
 import { Flex, Button, IconButton, Slider as RadixSlider, Separator, Text, Tooltip } from '@radix-ui/themes';
-import { updateText } from '../utils/storage';
+import { isMissingColumn, updateText } from '../utils/storage';
 import StemPlayerWrapper from './StemPlayerWrapper';
 import SongPlayer from './SongPlayer';
 import { loadBookmarks, saveBookmarks, sortBookmarks } from '../utils/bookmarks';
@@ -64,7 +64,13 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   // is better than a button that looks broken
   const [hasOverflow, setHasOverflow] = useState(false);
   // The scroll as taught: where the page should be at particular moments
-  const [scrollMap, setScrollMap] = useState(() => textData?.scrollMap || []);
+  // The song's own timing where the database can hold it, and this browser's
+  // copy where it cannot: the column is a migration away and a phone is a poor
+  // place to run one.
+  const [scrollMap, setScrollMap] = useState(() => (
+    (textData?.scrollMap?.length ? textData.scrollMap : stored.scrollMap) || []
+  ));
+  const [timingIsLocal, setTimingIsLocal] = useState(false);
   const [isTeaching, setIsTeaching] = useState(false);
   // A map taught before anchors existed is a list of holds, and turning those
   // into anchors needs to know how long the song is
@@ -1247,6 +1253,20 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeaching, engine, scrollMap]);
 
+  // Timing kept here while the column was missing moves up to the song as soon
+  // as the database can hold it, without anyone having to teach it again
+  useEffect(() => {
+    const local = loadSettings(songId).scrollMap;
+    if (!songId || !local?.length || textData?.scrollMap?.length) return;
+    updateText(songId, { scrollMap: local })
+      .then(() => {
+        setTimingIsLocal(false);
+        if (onTextDataUpdate) onTextDataUpdate();
+      })
+      .catch(() => setTimingIsLocal(true));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [songId]);
+
   /**
    * While teaching, a finger on the words takes the page over. Held still, the
    * page waits where the song waits. Pushed along, it catches up with music
@@ -1317,16 +1337,21 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const finishTeaching = async () => {
     endTeaching();
     setIsTeaching(false);
-    if (!textData?.id) return;
+    const taught = toAnchors(scrollMap, engine?.duration || 0);
+    if (!songId) return;
     try {
-      await updateText(textData.id, { scrollMap: toAnchors(scrollMap, engine?.duration || 0) });
+      await updateText(songId, { scrollMap: taught });
+      setTimingIsLocal(false);
       if (onTextDataUpdate) await onTextDataUpdate();
     } catch (error) {
+      if (isMissingColumn(error)) {
+        // Kept here instead, and it will move to the song once the column exists
+        saveSettings(songId, { scrollMap: taught });
+        setTimingIsLocal(true);
+        return;
+      }
       console.error('[TextMemorisationApp] Could not save the taught scroll:', error);
-      alert(
-        'The timing works for now but could not be saved. If this database has not had the ' +
-        'taught scroll migration run yet, apply the last section of supabase-schema.sql.'
-      );
+      alert('The timing works for now but could not be saved.');
     }
   };
 
@@ -1334,12 +1359,13 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     teachRef.current = null;
     setScrollMap([]);
     setIsTeaching(false);
-    if (!textData?.id) return;
+    if (!songId) return;
+    saveSettings(songId, { scrollMap: [] });
     try {
-      await updateText(textData.id, { scrollMap: [] });
+      await updateText(songId, { scrollMap: [] });
       if (onTextDataUpdate) await onTextDataUpdate();
     } catch (error) {
-      console.error('[TextMemorisationApp] Could not clear the taught scroll:', error);
+      if (!isMissingColumn(error)) console.error('[TextMemorisationApp] Could not clear the taught scroll:', error);
     }
   };
 
@@ -1650,9 +1676,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         {isTeaching ? (
                           <Text size="1" color="gray">Play, then hold the words to wait or push them on to catch up</Text>
                         ) : hasTiming(anchors) && (
-                          <Button size="1" variant="ghost" color="gray" onClick={forgetTeaching}>
-                            Forget timing
-                          </Button>
+                          <>
+                            {timingIsLocal && (
+                              <Text size="1" color="gray">Saved on this device</Text>
+                            )}
+                            <Button size="1" variant="ghost" color="gray" onClick={forgetTeaching}>
+                              Forget timing
+                            </Button>
+                          </>
                         )}
                       </Flex>
                     </>
