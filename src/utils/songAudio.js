@@ -73,6 +73,17 @@ export default class SongAudio {
     this.loop = null; // { start, end } in seconds
     this.listeners = {};
     this.pausedAt = 0;
+
+    // A phone that locks, or a tab left for another app, suspends the audio
+    // clock. Coming back does not restart it on its own, so the song would sit
+    // there looking as though it were playing while nothing moved.
+    this.wake = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (this.isPlaying && this.context.state === 'suspended') {
+        this.context.resume().catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', this.wake);
   }
 
   on(event, handler) {
@@ -293,6 +304,7 @@ export default class SongAudio {
   }
 
   destroy() {
+    document.removeEventListener('visibilitychange', this.wake);
     this.stop();
     this.tracks = [];
     this.listeners = {};

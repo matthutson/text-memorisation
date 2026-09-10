@@ -68,8 +68,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [isTeaching, setIsTeaching] = useState(false);
   const holdRef = useRef(null); // the hold in progress, while teaching
   const dragRef = useRef(null); // a hand dragging the words along the track
-  const wroteScrollRef = useRef(-1); // the last scroll position we set ourselves
   const swallowClickRef = useRef(false); // a drag is not a tap on a line
+  const lastSeekRef = useRef(0);
   const [columnWidth, setColumnWidth] = useState(() => numberOr(saved.columnWidth, window.innerWidth < 768 ? 100 : 160, { min: 60, max: 2000 }));
   // Size the text to fill the window. A song sized by hand keeps that size.
   const [autoFit, setAutoFit] = useState(() => boolOr(saved.autoFit, true));
@@ -1065,6 +1065,29 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
     let frame;
     const follow = () => {
+      // One bad frame must not end the loop. A thrown error here would stop
+      // the words for the rest of the session with no way back but a reload.
+      try {
+        moveWithTheTrack();
+      } catch (error) {
+        console.warn('[TextMemorisationApp] Skipped a scroll frame:', error?.message || error);
+      }
+      frame = requestAnimationFrame(follow);
+    };
+
+    const moveWithTheTrack = () => {
+      // A drag that has gone quiet is over, whatever the browser did or did not
+      // tell us. Without this the words could wait forever for a finger that
+      // has already been lifted.
+      if (dragRef.current && performance.now() - dragRef.current.lastMove > 1500) {
+        const stranded = dragRef.current;
+        dragRef.current = null;
+        // Keep where the hand left the page rather than snapping back to the song
+        if (stranded.moved && scrollContainerRef.current) {
+          lastSeekRef.current = 0;
+          seekToScroll(scrollContainerRef.current.scrollLeft);
+        }
+      }
       const container = scrollContainerRef.current;
       const duration = engine?.duration || 0;
       if (container && duration > 0) {
@@ -1080,12 +1103,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         // fought over every frame, and never while that hand is dragging
         if (!dragRef.current?.moved && Math.abs(container.scrollLeft - target) > 1) {
           container.scrollLeft = target;
-          wroteScrollRef.current = target;
         }
-        setCountdownProgress(Math.min(100, (now / duration) * 100));
+        // Whole percents only: this runs every frame, and a state change every
+        // frame re-renders the whole practice view sixty times a second
+        const percent = Math.min(100, Math.round((now / duration) * 100));
+        setCountdownProgress(current => (current === percent ? current : percent));
       }
-      frame = requestAnimationFrame(follow);
     };
+
     frame = requestAnimationFrame(follow);
     return () => cancelAnimationFrame(frame);
   }, [isAutoAdvancing, isTrackTimed, engine, scrollPauses]);
@@ -1095,11 +1120,16 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   // Not while teaching: there a hold means "wait here", not "move the song"
   const canScrub = isTrackTimed && isAutoAdvancing && !isTeaching;
 
-  const seekToScroll = (position) => {
+  const seekToScroll = (position, { throttle = false } = {}) => {
     const container = scrollContainerRef.current;
     if (!container || !engine?.duration) return;
     const furthest = container.scrollWidth - container.clientWidth;
     if (furthest <= 0) return;
+    // Rebuilding the playback buffers on every frame of a drag is more work
+    // than a hand can see; twenty times a second already feels continuous
+    const now = performance.now();
+    if (throttle && now - lastSeekRef.current < 50) return;
+    lastSeekRef.current = now;
     engine.seek(timeAt(scrollPauses, position, engine.duration, furthest));
   };
 
@@ -1110,9 +1140,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       pointerId: event.pointerId,
       fromX: event.clientX,
       fromScroll: container.scrollLeft,
-      moved: false
+      moved: false,
+      lastMove: performance.now()
     };
-    container.setPointerCapture?.(event.pointerId);
+    try {
+      container.setPointerCapture?.(event.pointerId);
+    } catch {
+      // The gesture is still followed through the window listeners below
+    }
   };
 
   const continueDrag = (event) => {
@@ -1120,6 +1155,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     const container = scrollContainerRef.current;
     if (!drag || !container || event.pointerId !== drag.pointerId) return;
 
+    drag.lastMove = performance.now();
     const travelled = event.clientX - drag.fromX;
     // A finger that has barely moved is still a tap on a line
     if (!drag.moved && Math.abs(travelled) < 4) return;
@@ -1128,27 +1164,67 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     const furthest = container.scrollWidth - container.clientWidth;
     const next = Math.min(furthest, Math.max(0, drag.fromScroll - travelled));
     container.scrollLeft = next;
-    wroteScrollRef.current = next;
-    seekToScroll(next);
+    seekToScroll(next, { throttle: true });
   };
 
   const endDrag = (event) => {
     const drag = dragRef.current;
     dragRef.current = null;
     if (!drag) return;
-    scrollContainerRef.current?.releasePointerCapture?.(drag.pointerId ?? event?.pointerId);
-    if (drag.moved) swallowClickRef.current = true;
+    try {
+      scrollContainerRef.current?.releasePointerCapture?.(drag.pointerId ?? event?.pointerId);
+    } catch {
+      // Already released, or never captured
+    }
+    if (!drag.moved) return;
+    swallowClickRef.current = true;
+    // Land on exactly where the hand left the page, throttle or no throttle
+    lastSeekRef.current = 0;
+    if (scrollContainerRef.current) seekToScroll(scrollContainerRef.current.scrollLeft);
   };
 
-  // A trackpad or a flicked phone scrolls the page without a pointer to follow,
-  // so the playhead is taken from wherever it lands
-  const handleScroll = (event) => {
-    if (!canScrub || dragRef.current) return;
-    const position = event.currentTarget.scrollLeft;
-    if (Math.abs(position - wroteScrollRef.current) <= 2) return; // our own doing
-    wroteScrollRef.current = position;
-    seekToScroll(position);
-  };
+  // A trackpad has no pointer to follow, so the wheel is read directly rather
+  // than left to scroll the page and be pulled back by the next frame. It has
+  // to be a listener of our own: React's wheel handler cannot cancel the
+  // browser's own scrolling.
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container || !canScrub) return undefined;
+
+    const onWheel = (event) => {
+      const travel = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      if (!travel) return;
+      event.preventDefault();
+      const furthest = container.scrollWidth - container.clientWidth;
+      if (furthest <= 0) return;
+      const next = Math.min(furthest, Math.max(0, container.scrollLeft + travel));
+      container.scrollLeft = next;
+      seekToScroll(next, { throttle: true });
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canScrub, engine, scrollPauses]);
+
+  // A finger lifted outside the words, or a gesture the browser takes over,
+  // has to end the drag too. Without this the page waits for a pointer that is
+  // never coming back and the words sit still while the song plays on.
+  useEffect(() => {
+    const finish = () => {
+      if (!dragRef.current) return;
+      if (dragRef.current.moved) swallowClickRef.current = true;
+      dragRef.current = null;
+    };
+    window.addEventListener('pointerup', finish);
+    window.addEventListener('pointercancel', finish);
+    window.addEventListener('blur', finish);
+    return () => {
+      window.removeEventListener('pointerup', finish);
+      window.removeEventListener('pointercancel', finish);
+      window.removeEventListener('blur', finish);
+    };
+  }, []);
 
   /** Hold the page still while the song keeps playing */
   const startHold = (event) => {
@@ -1603,7 +1679,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       onPointerUp={(event) => { endHold(); endDrag(event); }}
                       onPointerCancel={(event) => { endHold(); endDrag(event); }}
                       onPointerLeave={(event) => { endHold(); endDrag(event); }}
-                      onScroll={handleScroll}
                       className={`h-full overflow-x-auto overflow-y-hidden ${isDarkMode ? 'dark-scrollbar' : ''}`}
                       style={{
                         WebkitOverflowScrolling: 'touch',
