@@ -7,6 +7,7 @@ import StemPlayerWrapper from './StemPlayerWrapper';
 import SongPlayer from './SongPlayer';
 import { loadBookmarks, saveBookmarks, sortBookmarks } from '../utils/bookmarks';
 import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceSettings';
+import { hasTiming, positionAt, tidyPauses } from '../utils/scrollTiming';
 
 export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
   // How this song was left last time it was practised
@@ -62,6 +63,10 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   // A song that already fits the window has nothing to scroll, and saying so
   // is better than a button that looks broken
   const [hasOverflow, setHasOverflow] = useState(false);
+  // The scroll as taught: the moments a finger was held on the words
+  const [scrollPauses, setScrollPauses] = useState(() => tidyPauses(textData?.scrollMap || []));
+  const [isTeaching, setIsTeaching] = useState(false);
+  const holdRef = useRef(null); // the hold in progress, while teaching
   const [columnWidth, setColumnWidth] = useState(() => numberOr(saved.columnWidth, window.innerWidth < 768 ? 100 : 160, { min: 60, max: 2000 }));
   // Size the text to fill the window. A song sized by hand keeps that size.
   const [autoFit, setAutoFit] = useState(() => boolOr(saved.autoFit, true));
@@ -503,6 +508,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
   // Clicking a line either stamps it (while marking) or jumps the audio to it
   const handleLyricClick = (event) => {
+    if (isTeaching) return; // a hold is not a tap on a line
     const lineElement = event.target.closest?.('[data-line-index]');
     if (!lineElement) return;
     const lineIndex = Number(lineElement.dataset.lineIndex);
@@ -1018,20 +1024,71 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       const container = scrollContainerRef.current;
       const duration = engine?.duration || 0;
       if (container && duration > 0) {
-        const progress = Math.min(1, Math.max(0, engine.currentTime / duration));
+        const now = engine.currentTime;
         const furthest = container.scrollWidth - container.clientWidth;
         setHasOverflow(furthest > 4);
-        const target = Math.round(progress * furthest);
+
+        // A hold in progress counts as an open pause, so the page stops under
+        // the finger exactly as it will when this is played back
+        const held = holdRef.current === null ? scrollPauses : [...scrollPauses, [holdRef.current, null]];
+        const target = Math.round(positionAt(held, now, duration, furthest));
         // Only nudge when it has actually moved, so a hand on the page is not
         // fought over every frame
         if (Math.abs(container.scrollLeft - target) > 1) container.scrollLeft = target;
-        setCountdownProgress(progress * 100);
+        setCountdownProgress(Math.min(100, (now / duration) * 100));
       }
       frame = requestAnimationFrame(follow);
     };
     frame = requestAnimationFrame(follow);
     return () => cancelAnimationFrame(frame);
-  }, [isAutoAdvancing, isTrackTimed, engine]);
+  }, [isAutoAdvancing, isTrackTimed, engine, scrollPauses]);
+
+  /** Hold the page still while the song keeps playing */
+  const startHold = (event) => {
+    if (!isTeaching || !engine?.duration || !engine.isPlaying) return;
+    event.preventDefault();
+    holdRef.current = engine.currentTime;
+  };
+
+  /** Let go: the page moves again, covering what is left in the time that is left */
+  const endHold = () => {
+    const from = holdRef.current;
+    holdRef.current = null;
+    if (from === null || !engine) return;
+    const to = engine.currentTime;
+    if (to <= from + 0.05) return; // a tap, not a hold
+    setScrollPauses(current => tidyPauses([...current, [from, to]]));
+  };
+
+  /** Stop teaching and keep what was taught with the song */
+  const finishTeaching = async () => {
+    endHold();
+    setIsTeaching(false);
+    if (!textData?.id) return;
+    try {
+      await updateText(textData.id, { scrollMap: tidyPauses(scrollPauses) });
+      if (onTextDataUpdate) await onTextDataUpdate();
+    } catch (error) {
+      console.error('[TextMemorisationApp] Could not save the taught scroll:', error);
+      alert(
+        'The timing works for now but could not be saved. If this database has not had the ' +
+        'taught scroll migration run yet, apply the last section of supabase-schema.sql.'
+      );
+    }
+  };
+
+  const forgetTeaching = async () => {
+    holdRef.current = null;
+    setScrollPauses([]);
+    setIsTeaching(false);
+    if (!textData?.id) return;
+    try {
+      await updateText(textData.id, { scrollMap: [] });
+      if (onTextDataUpdate) await onTextDataUpdate();
+    } catch (error) {
+      console.error('[TextMemorisationApp] Could not clear the taught scroll:', error);
+    }
+  };
 
 
   return (
@@ -1298,7 +1355,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     </Button>
                     {isAutoAdvancing && isTrackTimed && (
                       <Text size="1" color="gray">
-                        {hasOverflow ? 'Paced by the track' : 'The whole song already fits'}
+                        {!hasOverflow
+                          ? 'The whole song already fits'
+                          : hasTiming(scrollPauses) ? 'Paced by your timing' : 'Paced by the track'}
                       </Text>
                     )}
                     {isAutoAdvancing && isBookmarkDriven && (
@@ -1321,6 +1380,30 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       </>
                     )}
                   </Flex>
+
+                  {/* Teaching the scroll its timing */}
+                  {isTrackTimed && (
+                    <>
+                      <Separator orientation="vertical" size="1" />
+                      <Flex align="center" gap="2" shrink="0">
+                        <Button
+                          variant={isTeaching ? 'solid' : 'outline'}
+                          color={isTeaching ? 'red' : 'gray'}
+                          size="2"
+                          onClick={() => (isTeaching ? finishTeaching() : setIsTeaching(true))}
+                        >
+                          {isTeaching ? 'Save timing' : 'Teach'}
+                        </Button>
+                        {isTeaching ? (
+                          <Text size="1" color="gray">Play, and hold the words to stop the scroll</Text>
+                        ) : hasTiming(scrollPauses) && (
+                          <Button size="1" variant="ghost" color="gray" onClick={forgetTeaching}>
+                            Forget timing
+                          </Button>
+                        )}
+                      </Flex>
+                    </>
+                  )}
 
                   <Separator orientation="vertical" size="1" />
 
@@ -1407,13 +1490,19 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     <div
                       ref={scrollContainerRef}
                       onClick={handleLyricClick}
+                      onPointerDown={startHold}
+                      onPointerUp={endHold}
+                      onPointerCancel={endHold}
+                      onPointerLeave={endHold}
                       className={`h-full overflow-x-auto overflow-y-hidden ${isDarkMode ? 'dark-scrollbar' : ''}`}
                       style={{
                         WebkitOverflowScrolling: 'touch',
                         backgroundColor: isDarkMode ? '#111827' : '#ffffff',
                         padding: '2rem',
                         paddingBottom: '2rem',
-                        cursor: isMarkMode ? 'crosshair' : 'default'
+                        userSelect: isTeaching ? 'none' : undefined,
+                        touchAction: isTeaching ? 'none' : undefined,
+                        cursor: isTeaching ? 'grab' : (isMarkMode ? 'crosshair' : 'default')
                       }}>
                       <div
                         ref={columnHostRef}

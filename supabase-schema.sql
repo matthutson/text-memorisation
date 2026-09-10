@@ -130,3 +130,13 @@ CREATE POLICY "Enable all access for jobs" ON jobs
 -- Songs that existed before this ran start as New.
 -- ---------------------------------------------------------------------------
 ALTER TABLE texts ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'new';
+
+-- ---------------------------------------------------------------------------
+-- Migration: the scroll, taught by hand
+--
+-- Holding a finger on the words while the track plays stops the page; letting
+-- go starts it again. Only the moments that were held are kept, as pairs of
+-- seconds, because everything between them follows from the same rule: on
+-- release, cover the rest of the page in the rest of the song.
+-- ---------------------------------------------------------------------------
+ALTER TABLE texts ADD COLUMN IF NOT EXISTS scroll_map JSONB NOT NULL DEFAULT '[]'::jsonb;

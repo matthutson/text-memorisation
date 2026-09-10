@@ -46,7 +46,12 @@ npm run build
 - **Text Size**: Adjust font size with +/- buttons
 - **Columns**: Adjust column width with +/- buttons
 - **Column Navigation**: Use arrow buttons to navigate between columns
-- **Auto-Advance**: Enable automatic scrolling with adjustable speed
+- **Auto-Advance**: With a backing track loaded this starts on and paces itself
+  by the recording, so the first word sits at the start and the last at the end.
+  Without a track it falls back to a timer with a speed slider.
+- **Teach**: Press Teach, play the song, and hold a finger on the words wherever
+  the page should wait. Let go and it catches up, so the last line still lands
+  with the last bar. Save the timing and every later play follows it.
 - **Back Button**: Return to the home page
 
 ## Data Storage
