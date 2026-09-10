@@ -49,6 +49,9 @@ npm run build
 - **Auto-Advance**: With a backing track loaded this starts on and paces itself
   by the recording, so the first word sits at the start and the last at the end.
   Without a track it falls back to a timer with a speed slider.
+- **Drag the words**: While a track is pacing them, dragging the page left or
+  right moves the playhead with it, the same way dragging the waveform moves the
+  words. A tap is still a tap.
 - **Teach**: Press Teach, play the song, and hold a finger on the words wherever
   the page should wait. Let go and it catches up, so the last line still lands
   with the last bar. Save the timing and every later play follows it.

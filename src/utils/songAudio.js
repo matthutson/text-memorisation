@@ -226,6 +226,9 @@ export default class SongAudio {
       });
     }
     this.pausedAt = target;
+    // Anything else showing the position needs to hear about a seek it did not
+    // make itself, such as a hand dragging the words along
+    this.emit('seek', target);
     return target;
   }
 

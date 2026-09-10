@@ -124,11 +124,18 @@ export default function SongPlayer({
 
     const offPlay = engine.on('play', () => setIsPlaying(true));
     const offPause = engine.on('pause', () => setIsPlaying(false));
+    // A seek from elsewhere still moves the readout and the playhead
+    const offSeek = engine.on('seek', (at) => {
+      timeRef.current = at;
+      setDisplayTime(at);
+      drawRef.current();
+    });
 
     return () => {
       cancelled = true;
       offPlay();
       offPause();
+      offSeek();
       engine.destroy();
       engineRef.current = null;
       if (onEngineReady) onEngineReady(null);

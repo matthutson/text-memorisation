@@ -60,5 +60,33 @@ export const positionAt = (pauses, time, duration, furthest) => {
   return Math.min(furthest, at + rate * (time - since));
 };
 
+/**
+ * The other way round: which moment in the track belongs at `position`, so a
+ * hand dragging the words can take the playhead with it. A held stretch has
+ * one position and many moments, and the useful answer there is the moment the
+ * hold began: the page waits, so dragging to it means arriving at the wait.
+ */
+export const timeAt = (pauses, position, duration, furthest) => {
+  if (!duration || furthest <= 0) return 0;
+  const wanted = Math.min(furthest, Math.max(0, position));
+  const held = tidyPauses(pauses).filter(([, to]) => to !== null);
+  if (!held.length) return (wanted / furthest) * duration;
+
+  let at = 0;
+  let since = 0;
+
+  for (const [from, to] of held) {
+    if (from >= duration) break;
+    const rate = since >= duration ? 0 : (furthest - at) / (duration - since);
+    const reached = at + rate * (from - since);
+    if (wanted <= reached) return rate > 0 ? since + (wanted - at) / rate : since;
+    at = reached;
+    since = to;
+  }
+
+  const rate = since >= duration ? 0 : (furthest - at) / (duration - since);
+  return Math.min(duration, rate > 0 ? since + (wanted - at) / rate : since);
+};
+
 /** Whether a song has been taught anything worth replaying */
 export const hasTiming = (pauses) => tidyPauses(pauses).some(([, to]) => to !== null);
