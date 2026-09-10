@@ -121,3 +121,12 @@ ALTER TABLE jobs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Enable all access for jobs" ON jobs;
 CREATE POLICY "Enable all access for jobs" ON jobs
   FOR ALL USING (true) WITH CHECK (true);
+
+-- ---------------------------------------------------------------------------
+-- Migration: how far along a song is
+--
+-- The homepage shows each song as New, Learning or Learned. It lives on the
+-- song rather than in the browser so the same answer follows you to the phone.
+-- Songs that existed before this ran start as New.
+-- ---------------------------------------------------------------------------
+ALTER TABLE texts ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'new';

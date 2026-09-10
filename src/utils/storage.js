@@ -242,6 +242,8 @@ const mapText = (text) => ({
   musicXML: text.music_xml,
   stems: text.stems,
   bookmarks: text.bookmarks,
+  // Where the song has got to: 'new', 'learning' or 'learned'
+  status: text.status || 'new',
   tagIds: text.tagIds || [],
   ultimateGuitarUrl: text.ultimate_guitar_url,
   soundsliceUrl: text.soundslice_url,
@@ -365,6 +367,7 @@ export const updateText = async (id, updates) => {
   if (updates.bookmarks !== undefined) dbUpdates.bookmarks = updates.bookmarks;
   if (updates.ultimateGuitarUrl !== undefined) dbUpdates.ultimate_guitar_url = updates.ultimateGuitarUrl;
   if (updates.soundsliceUrl !== undefined) dbUpdates.soundslice_url = updates.soundsliceUrl;
+  if (updates.status !== undefined) dbUpdates.status = updates.status;
 
   const { data, error } = await supabase
     .from('texts')

@@ -52,6 +52,14 @@ const icons = {
     </>
   ),
   moon: <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />,
+  // A little waveform: the song has backing tracks to play against
+  waveform: (
+    <>
+      <line x1="4" y1="10" x2="4" y2="14" /><line x1="8" y1="6" x2="8" y2="18" />
+      <line x1="12" y1="9" x2="12" y2="15" /><line x1="16" y1="4" x2="16" y2="20" />
+      <line x1="20" y1="10" x2="20" y2="14" />
+    </>
+  ),
   menu: (
     <>
       <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
@@ -75,6 +83,32 @@ const emptyDraft = {
   tagIds: [],
   fetchBackingTrack: false
 };
+
+// New, learning, learned: a traffic light, and the number of bars lit
+const STATUSES = [
+  { id: 'new', label: 'New', color: '#ef4444', bars: 1 },
+  { id: 'learning', label: 'Learning', color: '#f59e0b', bars: 2 },
+  { id: 'learned', label: 'Learned', color: '#22c55e', bars: 3 }
+];
+
+const statusFor = (song) => STATUSES.find(item => item.id === song?.status) || STATUSES[0];
+const nextStatus = (song) => STATUSES[(STATUSES.indexOf(statusFor(song)) + 1) % STATUSES.length];
+
+const StatusBars = ({ status }) => (
+  <Flex gap="1" align="end" style={{ height: 12 }}>
+    {[0, 1, 2].map(index => (
+      <Box
+        key={index}
+        style={{
+          width: 4,
+          height: 5 + index * 3.5,
+          borderRadius: 1,
+          background: index < status.bars ? status.color : 'var(--gray-a5)'
+        }}
+      />
+    ))}
+  </Flex>
+);
 
 const isYouTubeLink = (url) => /(?:youtube\.com\/watch|youtu\.be\/|youtube\.com\/shorts)/.test(url || '');
 
@@ -238,6 +272,23 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
     const next = current.includes(tagId) ? current.filter(id => id !== tagId) : [...current, tagId];
     setSongs(list => list.map(item => item.id === song.id ? { ...item, tagIds: next } : item));
     await withTagErrors(() => setTextTags(song.id, next));
+  };
+
+  /** Step a song on: new, then learning, then learned, then round again */
+  const cycleStatus = async (song) => {
+    const previous = song.status || 'new';
+    const next = nextStatus(song).id;
+    setSongs(list => list.map(item => item.id === song.id ? { ...item, status: next } : item));
+    try {
+      await updateText(song.id, { status: next });
+    } catch (error) {
+      console.error('[HomePage] Could not save the status:', error);
+      setSongs(list => list.map(item => item.id === song.id ? { ...item, status: previous } : item));
+      alert(
+        'Could not save the status. If this database has not had the song status migration run yet, ' +
+        'apply the last section of supabase-schema.sql and try again.'
+      );
+    }
   };
 
   // ---- Tags ----
@@ -530,6 +581,33 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
                     )}
 
                     <Box style={{ flex: 1 }} />
+
+                    <Flex align="center" justify="between" gap="2">
+                      <Flex
+                        align="center"
+                        gap="2"
+                        onClick={() => cycleStatus(song)}
+                        title={`${statusFor(song).label}. Click for ${nextStatus(song).label}`}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        <StatusBars status={statusFor(song)} />
+                        <Text size="1" weight="medium" style={{ color: statusFor(song).color }}>
+                          {statusFor(song).label}
+                        </Text>
+                      </Flex>
+
+                      <Box
+                        title={(song.stems || []).length
+                          ? `${(song.stems || []).length} backing tracks`
+                          : 'No backing tracks yet'}
+                        style={{
+                          display: 'flex',
+                          color: (song.stems || []).length ? 'var(--accent-9)' : 'var(--gray-a5)'
+                        }}
+                      >
+                        <Icon name="waveform" size={16} />
+                      </Box>
+                    </Flex>
 
                     {(song.ultimateGuitarUrl || song.soundsliceUrl) && (
                       <Flex gap="2">
