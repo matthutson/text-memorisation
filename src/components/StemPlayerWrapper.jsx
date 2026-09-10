@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Badge, Box, Button, Flex, IconButton, Progress, Slider, Text } from '@radix-ui/themes';
+import { Badge, Box, Button, Flex, IconButton, Progress, Slider, Text, TextField } from '@radix-ui/themes';
 import { supabase } from '../utils/supabase';
-import { getJobForText, updateText } from '../utils/storage';
+import { getJobForText, queueBackingTrack, updateText } from '../utils/storage';
 import { getMinutesLeft, splitIntoStems } from '../utils/stemSplit';
 import { loadSettings, saveSettings } from '../utils/practiceSettings';
 
-const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisible = true, engine }) => {
+const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onStemsUpdate, isVisible = true, engine }) => {
     const [isUploading, setIsUploading] = useState(false);
     const [bucketStatus, setBucketStatus] = useState('checking'); // 'checking', 'ready', 'error'
     const [bucketError, setBucketError] = useState(null);
@@ -15,6 +15,10 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisi
     // src -> { volume, muted }, remembered from the last time this song was open
     const [levels, setLevels] = useState(() => loadSettings(textId).mix || {});
     const [job, setJob] = useState(null); // the backing track fetch, when one is running
+    // Null until the field is touched, so the song's own link fills it in
+    const [linkDraft, setLinkDraft] = useState(null);
+    const [fetchError, setFetchError] = useState(null);
+    const link = linkDraft === null ? youtubeUrl : linkDraft;
 
     const levelFor = (stem) => levels[stem.src] || { volume: stem.volume ?? 1, muted: !!stem.muted };
 
@@ -253,6 +257,25 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisi
         }
     };
 
+    // The other route: StemDeck downloads and separates the song on your own
+    // machine. Nothing happens here beyond queueing the work for it.
+    const handleQueueFetch = async () => {
+        if (!textId) {
+            alert('Save this song before fetching a backing track for it.');
+            return;
+        }
+        const url = link.trim();
+        if (!url) return;
+
+        setFetchError(null);
+        try {
+            setJob(await queueBackingTrack(textId, url));
+        } catch (error) {
+            console.error('[StemPlayerWrapper] Could not queue the fetch:', error);
+            setFetchError('Could not queue the fetch. If this database has not had the backing track jobs migration run, apply that section of supabase-schema.sql.');
+        }
+    };
+
     const handleClearStems = async () => {
         if (window.confirm('Are you sure you want to remove all stems? This will delete the files permanently.')) {
             setIsUploading(true);
@@ -283,6 +306,8 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisi
             }
         }
     };
+
+    const isRunningFetch = job?.status === 'queued' || job?.status === 'running';
 
     const getRandomColor = () => {
         const colors = ['#ef4444', '#f97316', '#f59e0b', '#84cc16', '#10b981', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef', '#f43f5e'];
@@ -347,39 +372,75 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisi
                     </Flex>
                 </Flex>
 
-                {/* Split a song into stems */}
-                <Flex direction="column" gap="2" style={{ minWidth: 240 }}>
-                    <Flex align="center" gap="2">
+                {/* Split a song into stems, by either route */}
+                <Flex direction="column" gap="3" style={{ minWidth: 280 }}>
+                    <Box>
                         <Text size="1" weight="bold" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                             Split a song
                         </Text>
-                        <Badge color={minutesLeft === null ? 'gray' : 'blue'} variant="soft" radius="full">
-                            {minutesLeft === null ? 'Not set up' : `${Math.round(minutesLeft)} min left`}
-                        </Badge>
-                    </Flex>
-                    <Text size="1" color="gray">Separates the vocal from the backing.</Text>
-                    <Button size="2" variant="soft" disabled={!!splitProgress || isUploading} asChild>
-                        <label style={{ cursor: 'pointer' }}>
-                            {splitProgress ? 'Splitting…' : 'Choose a song'}
-                            <input
-                                type="file"
-                                accept="audio/*"
-                                onChange={handleSplitUpload}
-                                disabled={!!splitProgress || isUploading}
-                                style={{ display: 'none' }}
-                            />
-                        </label>
-                    </Button>
+                        <Text as="div" size="1" color="gray">Separates the vocal from the backing.</Text>
+                    </Box>
 
-                    {splitProgress && (
-                        <Box>
-                            <Progress value={splitProgress.percent} size="1" />
-                            <Text as="div" size="1" color="gray" mt="1">{splitProgress.message}</Text>
-                        </Box>
-                    )}
-                    {splitError && (
-                        <Text as="div" size="1" color="red">{splitError}</Text>
-                    )}
+                    {/* A file you have, split in the cloud */}
+                    <Box>
+                        <Flex align="center" gap="2" mb="1">
+                            <Text size="1" weight="medium">From a file</Text>
+                            <Badge color={minutesLeft === null ? 'gray' : 'blue'} variant="soft" radius="full">
+                                {minutesLeft === null ? 'LALAL.AI not set up' : `LALAL.AI · ${Math.round(minutesLeft)} min left`}
+                            </Badge>
+                        </Flex>
+                        <Button size="2" variant="soft" disabled={!!splitProgress || isUploading} asChild>
+                            <label style={{ cursor: 'pointer' }}>
+                                {splitProgress ? 'Splitting…' : 'Choose a song'}
+                                <input
+                                    type="file"
+                                    accept="audio/*"
+                                    onChange={handleSplitUpload}
+                                    disabled={!!splitProgress || isUploading}
+                                    style={{ display: 'none' }}
+                                />
+                            </label>
+                        </Button>
+
+                        {splitProgress && (
+                            <Box mt="1">
+                                <Progress value={splitProgress.percent} size="1" />
+                                <Text as="div" size="1" color="gray" mt="1">{splitProgress.message}</Text>
+                            </Box>
+                        )}
+                        {splitError && (
+                            <Text as="div" size="1" color="red" mt="1">{splitError}</Text>
+                        )}
+                    </Box>
+
+                    {/* A link, fetched and split by StemDeck at home */}
+                    <Box>
+                        <Flex align="center" gap="2" mb="1">
+                            <Text size="1" weight="medium">From a link</Text>
+                            <Badge color="gray" variant="soft" radius="full">StemDeck · your machine</Badge>
+                        </Flex>
+                        <Flex gap="2">
+                            <TextField.Root
+                                size="2"
+                                placeholder="YouTube link"
+                                value={link}
+                                onChange={(event) => setLinkDraft(event.target.value)}
+                                style={{ flex: 1, minWidth: 0 }}
+                            />
+                            <Button
+                                size="2"
+                                variant="soft"
+                                onClick={handleQueueFetch}
+                                disabled={!link.trim() || isRunningFetch}
+                            >
+                                {isRunningFetch ? 'Fetching…' : 'Fetch'}
+                            </Button>
+                        </Flex>
+                        {fetchError && (
+                            <Text as="div" size="1" color="red" mt="1">{fetchError}</Text>
+                        )}
+                    </Box>
+
                     {bucketStatus === 'error' && bucketError && stems.length === 0 && (
                         <Text as="div" size="1" color="red">{bucketError}</Text>
                     )}
@@ -393,7 +454,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, onStemsUpdate, isVisi
 
                     {stems.length === 0 && !isUploading && (
                         <Text as="div" size="1" color="gray">
-                            No tracks yet. Add an audio file or split a song into stems.
+                            No tracks yet. Add an audio file, split one, or fetch a link.
                         </Text>
                     )}
 

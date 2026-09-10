@@ -62,7 +62,13 @@ export const splitIntoStems = async (file, { textId, onProgress = () => {} } = {
     const uploaded = await post('upload', { url: sourceUrl, filename: file.name });
 
     onProgress({ stage: 'splitting', percent: 20, message: 'Splitting…' });
-    const { task_id: taskId } = await post('split', { source_id: uploaded.id, stem: 'vocals' });
+    // mp3 rather than the source format: a wav backing track is twenty times
+    // the size and has to be downloaded again every time the song is opened.
+    const { task_id: taskId } = await post('split', {
+      source_id: uploaded.id,
+      stem: 'vocals',
+      encoder_format: 'mp3'
+    });
 
     // 3. Wait for it, reporting the reported percentage
     const startedAt = Date.now();
@@ -94,8 +100,7 @@ export const splitIntoStems = async (file, { textId, onProgress = () => {} } = {
     for (const track of tracks) {
       const isBacking = track.type === 'back';
       const label = `${base} — ${isBacking ? 'Backing' : 'Vocals'}`;
-      const extension = (track.name || track.url).split('.').pop().split('?')[0] || 'mp3';
-      const path = `${textId}/${Date.now()}-${safeName(`${base}-${isBacking ? 'backing' : 'vocals'}.${extension}`)}`;
+      const path = `${textId}/${Date.now()}-${safeName(`${base}-${isBacking ? 'backing' : 'vocals'}.mp3`)}`;
 
       const saved = await post('import', { url: track.url, path });
       stems.push({

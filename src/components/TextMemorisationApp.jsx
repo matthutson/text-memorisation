@@ -1471,6 +1471,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   stems={stems}
                   setStems={setStems}
                   textId={textData?.id}
+                  youtubeUrl={textData?.youtubeUrl || ''}
                   isDarkMode={isDarkMode}
                   isVisible={isStemPlayerVisible}
                   onStemsUpdate={onTextDataUpdate}
