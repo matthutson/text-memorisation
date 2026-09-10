@@ -659,8 +659,12 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     // their own words, so a line that will not fit costs nothing.
     const available = container.clientWidth - 64;
     if (window.innerWidth < 768) {
-      setFontSize(15);
-      setColumnWidth(Math.max(160, available));
+      // Measured on a phone rather than reasoned about: nine point text in
+      // columns about a quarter of the screen wide puts two verses in front of
+      // you with the next one starting at the edge, which is what a hand held
+      // at reading distance wants.
+      setFontSize(9);
+      setColumnWidth(Math.max(90, Math.round(container.clientWidth * 0.272)));
       return;
     }
 
