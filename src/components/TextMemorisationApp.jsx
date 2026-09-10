@@ -7,7 +7,7 @@ import StemPlayerWrapper from './StemPlayerWrapper';
 import SongPlayer from './SongPlayer';
 import { loadBookmarks, saveBookmarks, sortBookmarks } from '../utils/bookmarks';
 import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceSettings';
-import { hasTiming, positionAt, tidyPauses, timeAt } from '../utils/scrollTiming';
+import { hasTiming, positionAt, timeAt, toAnchors, withAnchors } from '../utils/scrollTiming';
 
 export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
   // How this song was left last time it was practised
@@ -63,10 +63,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   // A song that already fits the window has nothing to scroll, and saying so
   // is better than a button that looks broken
   const [hasOverflow, setHasOverflow] = useState(false);
-  // The scroll as taught: the moments a finger was held on the words
-  const [scrollPauses, setScrollPauses] = useState(() => tidyPauses(textData?.scrollMap || []));
+  // The scroll as taught: where the page should be at particular moments
+  const [scrollMap, setScrollMap] = useState(() => textData?.scrollMap || []);
   const [isTeaching, setIsTeaching] = useState(false);
-  const holdRef = useRef(null); // the hold in progress, while teaching
+  // A map taught before anchors existed is a list of holds, and turning those
+  // into anchors needs to know how long the song is
+  const anchors = useMemo(() => toAnchors(scrollMap, engine?.duration || 0), [scrollMap, engine?.duration]);
+
+  const teachRef = useRef(null); // the finger's hold on the page, while teaching
   const dragRef = useRef(null); // a hand dragging the words along the track
   const swallowClickRef = useRef(false); // a drag is not a tap on a line
   const lastSeekRef = useRef(0);
@@ -1079,6 +1083,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       // A drag that has gone quiet is over, whatever the browser did or did not
       // tell us. Without this the words could wait forever for a finger that
       // has already been lifted.
+      // A teaching hand that has gone quiet is a hand still holding: it is the
+      // waiting that is being taught, so that one is left alone.
       if (dragRef.current && performance.now() - dragRef.current.lastMove > 1500) {
         const stranded = dragRef.current;
         dragRef.current = null;
@@ -1097,15 +1103,15 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
         // A hold in progress counts as an open pause, so the page stops under
         // the finger exactly as it will when this is played back
-        const held = holdRef.current === null ? scrollPauses : [...scrollPauses, [holdRef.current, null]];
         // Fractions matter: rounding to whole pixels is itself a stutter when
         // a song crawls along at a fifth of a pixel a frame
-        const target = positionAt(held, now, duration, furthest);
+        const target = positionAt(anchors, now, duration, furthest);
         // A scroll offset lands on whole pixels, and at a fifth of a pixel a
         // frame that means moving once every few frames: the stutter you see.
         // So the whole pixels are scrolled and the fraction is carried by a
         // transform, which is free and has no such limit.
-        if (!dragRef.current?.moved) {
+        // While a finger is teaching or dragging, the page belongs to it
+        if (!dragRef.current?.moved && !teachRef.current) {
           const whole = Math.floor(target);
           if (Math.abs(container.scrollLeft - whole) > 0.5) container.scrollLeft = whole;
           const host = columnHostRef.current;
@@ -1126,7 +1132,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       if (host) host.style.transform = '';
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAutoAdvancing, isTrackTimed, engine, scrollPauses]);
+  }, [isAutoAdvancing, isTrackTimed, engine, anchors]);
 
   // Dragging the words is the same act as dragging the playhead, read the
   // other way round: the page and the track are two views of one position.
@@ -1143,7 +1149,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     const now = performance.now();
     if (throttle && now - lastSeekRef.current < 50) return;
     lastSeekRef.current = now;
-    engine.seek(timeAt(scrollPauses, position, engine.duration, furthest));
+    engine.seek(timeAt(anchors, position, engine.duration, furthest));
   };
 
   const startDrag = (event) => {
@@ -1218,13 +1224,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [canScrub, engine, scrollPauses]);
+  }, [canScrub, engine, anchors]);
 
   // A finger lifted outside the words, or a gesture the browser takes over,
   // has to end the drag too. Without this the page waits for a pointer that is
   // never coming back and the words sit still while the song plays on.
   useEffect(() => {
     const finish = () => {
+      if (teachRef.current) endTeaching();
       if (!dragRef.current) return;
       if (dragRef.current.moved) swallowClickRef.current = true;
       dragRef.current = null;
@@ -1237,32 +1244,82 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       window.removeEventListener('pointercancel', finish);
       window.removeEventListener('blur', finish);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isTeaching, engine, scrollMap]);
 
-  /** Hold the page still while the song keeps playing */
-  const startHold = (event) => {
-    if (!isTeaching || !engine?.duration || !engine.isPlaying) return;
+  /**
+   * While teaching, a finger on the words takes the page over. Held still, the
+   * page waits where the song waits. Pushed along, it catches up with music
+   * that has run ahead of it. Either way, letting go leaves an anchor: this is
+   * where the page should be at this moment.
+   */
+  const startTeaching = (event) => {
+    const container = scrollContainerRef.current;
+    if (!isTeaching || !container || !engine?.duration || !engine.isPlaying) return;
     event.preventDefault();
-    holdRef.current = engine.smoothTime;
+    const furthest = container.scrollWidth - container.clientWidth;
+    teachRef.current = {
+      pointerId: event.pointerId,
+      fromTime: engine.smoothTime,
+      fromAt: furthest > 0 ? container.scrollLeft / furthest : 0,
+      fromX: event.clientX,
+      fromScroll: container.scrollLeft,
+      moved: false,
+      lastMove: performance.now()
+    };
+    try {
+      container.setPointerCapture?.(event.pointerId);
+    } catch {
+      // The window listeners below still see the end of the gesture
+    }
   };
 
-  /** Let go: the page moves again, covering what is left in the time that is left */
-  const endHold = () => {
-    const from = holdRef.current;
-    holdRef.current = null;
-    if (from === null || !engine) return;
-    const to = engine.smoothTime;
-    if (to <= from + 0.05) return; // a tap, not a hold
-    setScrollPauses(current => tidyPauses([...current, [from, to]]));
+  const moveTeaching = (event) => {
+    const teaching = teachRef.current;
+    const container = scrollContainerRef.current;
+    if (!teaching || !container || event.pointerId !== teaching.pointerId) return;
+
+    teaching.lastMove = performance.now();
+    const travelled = event.clientX - teaching.fromX;
+    if (!teaching.moved && Math.abs(travelled) < 4) return;
+    teaching.moved = true;
+
+    // The music carries on: this is the page catching up with it, not a seek
+    const furthest = container.scrollWidth - container.clientWidth;
+    container.scrollLeft = Math.min(furthest, Math.max(0, teaching.fromScroll - travelled));
+  };
+
+  const endTeaching = () => {
+    const teaching = teachRef.current;
+    const container = scrollContainerRef.current;
+    teachRef.current = null;
+    if (!teaching || !container || !engine) return;
+    try {
+      container.releasePointerCapture?.(teaching.pointerId);
+    } catch {
+      // Already gone
+    }
+    if (teaching.moved) swallowClickRef.current = true;
+
+    const furthest = container.scrollWidth - container.clientWidth;
+    const at = furthest > 0 ? container.scrollLeft / furthest : 0;
+    const now = engine.smoothTime;
+    // A tap that neither waited nor moved has taught nothing
+    if (!teaching.moved && now <= teaching.fromTime + 0.05) return;
+
+    setScrollMap(current => withAnchors(toAnchors(current, engine.duration), [
+      { time: teaching.fromTime, at: teaching.fromAt },
+      { time: now, at }
+    ]));
   };
 
   /** Stop teaching and keep what was taught with the song */
   const finishTeaching = async () => {
-    endHold();
+    endTeaching();
     setIsTeaching(false);
     if (!textData?.id) return;
     try {
-      await updateText(textData.id, { scrollMap: tidyPauses(scrollPauses) });
+      await updateText(textData.id, { scrollMap: toAnchors(scrollMap, engine?.duration || 0) });
       if (onTextDataUpdate) await onTextDataUpdate();
     } catch (error) {
       console.error('[TextMemorisationApp] Could not save the taught scroll:', error);
@@ -1274,8 +1331,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   };
 
   const forgetTeaching = async () => {
-    holdRef.current = null;
-    setScrollPauses([]);
+    teachRef.current = null;
+    setScrollMap([]);
     setIsTeaching(false);
     if (!textData?.id) return;
     try {
@@ -1553,7 +1610,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       <Text size="1" color="gray">
                         {!hasOverflow
                           ? 'The whole song already fits'
-                          : hasTiming(scrollPauses) ? 'Paced by your timing' : 'Paced by the track'}
+                          : hasTiming(anchors) ? 'Paced by your timing' : 'Paced by the track'}
                       </Text>
                     )}
                     {isAutoAdvancing && isBookmarkDriven && (
@@ -1591,8 +1648,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                           {isTeaching ? 'Save timing' : 'Teach'}
                         </Button>
                         {isTeaching ? (
-                          <Text size="1" color="gray">Play, and hold the words to stop the scroll</Text>
-                        ) : hasTiming(scrollPauses) && (
+                          <Text size="1" color="gray">Play, then hold the words to wait or push them on to catch up</Text>
+                        ) : hasTiming(anchors) && (
                           <Button size="1" variant="ghost" color="gray" onClick={forgetTeaching}>
                             Forget timing
                           </Button>
@@ -1687,11 +1744,11 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     <div
                       ref={scrollContainerRef}
                       onClick={handleLyricClick}
-                      onPointerDown={(event) => { startHold(event); startDrag(event); }}
-                      onPointerMove={continueDrag}
-                      onPointerUp={(event) => { endHold(); endDrag(event); }}
-                      onPointerCancel={(event) => { endHold(); endDrag(event); }}
-                      onPointerLeave={(event) => { endHold(); endDrag(event); }}
+                      onPointerDown={(event) => { startTeaching(event); startDrag(event); }}
+                      onPointerMove={(event) => { moveTeaching(event); continueDrag(event); }}
+                      onPointerUp={(event) => { endTeaching(); endDrag(event); }}
+                      onPointerCancel={(event) => { endTeaching(); endDrag(event); }}
+                      onPointerLeave={(event) => { endTeaching(); endDrag(event); }}
                       className={`h-full overflow-x-auto overflow-y-hidden ${isDarkMode ? 'dark-scrollbar' : ''}`}
                       style={{
                         WebkitOverflowScrolling: 'touch',

@@ -3,90 +3,115 @@
 //
 // Pacing the words by the length of the track assumes a song moves at one
 // steady rate, and no song does: there are instrumental breaks, held notes and
-// verses that hurry. So the app can be shown instead. While the track plays,
-// holding a finger on the words stops the scroll; letting go starts it again
-// and it catches up so the last line still lands with the last bar.
+// verses that hurry. So the app can be shown instead. While the track plays, a
+// finger on the words takes the page over: hold it still where the song waits,
+// or push it along where the page has fallen behind. Let go and it carries on
+// from there, covering what is left of the page in what is left of the song.
 //
-// What that leaves behind is only the list of moments that were held, because
-// everything between them follows from the rule above: on release, cover the
-// rest of the page in the rest of the song. Storing the holds rather than a
-// sampled curve keeps it small and readable, and it replays exactly.
+// What that leaves behind is a handful of anchors, each saying where the page
+// should be at one moment: { time in seconds, at as a fraction of the whole
+// page }. A fraction rather than a pixel, so a song taught on a laptop still
+// means something on a phone, where the words are a different size and the
+// page a different length. Between anchors the page moves at a steady rate,
+// and after the last one it aims for the end of the page at the end of the
+// song, which is the same rule as having no anchors at all.
 //
 
-/** Tidy a taught list: sorted, non-overlapping, no negative or zero-length holds */
-export const tidyPauses = (pauses = []) => {
-  const clean = pauses
-    .filter(pause => Array.isArray(pause) && typeof pause[0] === 'number')
-    .map(([from, to]) => [Math.max(0, from), typeof to === 'number' ? Math.max(0, to) : null])
-    .filter(([from, to]) => to === null || to > from + 0.05)
+const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
+
+/**
+ * Read a stored map. Anchors come back sorted and deduplicated. A map from
+ * before anchors existed is a list of [from, to] holds; those are replayed
+ * under the old rule and kept as the anchors they amount to.
+ */
+export const toAnchors = (stored = [], duration = 0) => {
+  if (!Array.isArray(stored) || !stored.length) return [];
+
+  if (Array.isArray(stored[0])) return fromHolds(stored, duration);
+
+  const anchors = stored
+    .filter(anchor => anchor && Number.isFinite(anchor.time) && Number.isFinite(anchor.at))
+    .map(anchor => ({ time: Math.max(0, anchor.time), at: clamp(anchor.at, 0, 1) }))
+    .sort((a, b) => a.time - b.time);
+
+  // One anchor per moment: the later teaching wins
+  return anchors.filter((anchor, index) => {
+    const next = anchors[index + 1];
+    return !next || next.time - anchor.time > 0.02;
+  });
+};
+
+/** The old shape: pairs of seconds the page was held still */
+const fromHolds = (holds, duration) => {
+  if (!duration) return [];
+  const clean = holds
+    .filter(hold => Array.isArray(hold) && Number.isFinite(hold[0]) && Number.isFinite(hold[1]) && hold[1] > hold[0])
     .sort((a, b) => a[0] - b[0]);
 
-  const merged = [];
-  clean.forEach(pause => {
-    const last = merged[merged.length - 1];
-    // A hold that starts inside the one before it is the same hold
-    if (last && last[1] !== null && pause[0] <= last[1]) {
-      last[1] = pause[1] === null ? null : Math.max(last[1], pause[1]);
-      return;
-    }
-    merged.push([...pause]);
-  });
-  return merged;
-};
-
-/**
- * How far along the page should be at `time`, in the same units as `furthest`.
- * With no holds this is the plain proportion of the track played.
- */
-export const positionAt = (pauses, time, duration, furthest) => {
-  if (!duration || furthest <= 0) return 0;
-  const held = tidyPauses(pauses);
-  if (!held.length) return Math.min(furthest, (time / duration) * furthest);
-
-  let at = 0;      // where the page has reached
-  let since = 0;   // the moment the current run started
-
-  for (const [from, to] of held) {
-    if (from >= duration) break;
-    const rate = since >= duration ? 0 : (furthest - at) / (duration - since);
-    if (time <= from) return Math.min(furthest, at + rate * (time - since));
-
-    at = Math.min(furthest, at + rate * (from - since));
-    if (to === null || time <= to) return at; // still being held
-    since = to;
-  }
-
-  const rate = since >= duration ? 0 : (furthest - at) / (duration - since);
-  return Math.min(furthest, at + rate * (time - since));
-};
-
-/**
- * The other way round: which moment in the track belongs at `position`, so a
- * hand dragging the words can take the playhead with it. A held stretch has
- * one position and many moments, and the useful answer there is the moment the
- * hold began: the page waits, so dragging to it means arriving at the wait.
- */
-export const timeAt = (pauses, position, duration, furthest) => {
-  if (!duration || furthest <= 0) return 0;
-  const wanted = Math.min(furthest, Math.max(0, position));
-  const held = tidyPauses(pauses).filter(([, to]) => to !== null);
-  if (!held.length) return (wanted / furthest) * duration;
-
+  const anchors = [];
   let at = 0;
   let since = 0;
-
-  for (const [from, to] of held) {
-    if (from >= duration) break;
-    const rate = since >= duration ? 0 : (furthest - at) / (duration - since);
-    const reached = at + rate * (from - since);
-    if (wanted <= reached) return rate > 0 ? since + (wanted - at) / rate : since;
-    at = reached;
+  clean.forEach(([from, to]) => {
+    if (from >= duration) return;
+    const rate = (1 - at) / (duration - since);
+    at = clamp(at + rate * (from - since), 0, 1);
+    anchors.push({ time: from, at }, { time: to, at });
     since = to;
-  }
+  });
+  return anchors;
+};
 
-  const rate = since >= duration ? 0 : (furthest - at) / (duration - since);
-  return Math.min(duration, rate > 0 ? since + (wanted - at) / rate : since);
+/** Where the page should be at `time`, in the same units as `furthest` */
+export const positionAt = (anchors, time, duration, furthest) => {
+  if (!duration || furthest <= 0) return 0;
+  const points = [{ time: 0, at: 0 }, ...anchors, { time: duration, at: 1 }];
+
+  for (let index = 1; index < points.length; index += 1) {
+    const before = points[index - 1];
+    const after = points[index];
+    if (time > after.time) continue;
+    const span = after.time - before.time;
+    const share = span > 0 ? (time - before.time) / span : 0;
+    return clamp(before.at + (after.at - before.at) * share, 0, 1) * furthest;
+  }
+  return furthest;
+};
+
+/**
+ * The other way round: which moment belongs at `position`, so a hand dragging
+ * the words can take the playhead with it. Where the page waits, and one place
+ * answers to many moments, the useful answer is the moment the wait began.
+ */
+export const timeAt = (anchors, position, duration, furthest) => {
+  if (!duration || furthest <= 0) return 0;
+  const wanted = clamp(position / furthest, 0, 1);
+  const points = [{ time: 0, at: 0 }, ...anchors, { time: duration, at: 1 }];
+
+  for (let index = 1; index < points.length; index += 1) {
+    const before = points[index - 1];
+    const after = points[index];
+    const low = Math.min(before.at, after.at);
+    const high = Math.max(before.at, after.at);
+    if (wanted > high) continue;
+    if (wanted < low) return before.time;
+    const span = after.at - before.at;
+    const share = span !== 0 ? (wanted - before.at) / span : 0;
+    return clamp(before.time + (after.time - before.time) * share, 0, duration);
+  }
+  return duration;
+};
+
+/** Add what has just been taught, replacing any anchors it overrules */
+export const withAnchors = (anchors, added = []) => {
+  const fresh = added.filter(anchor => anchor && Number.isFinite(anchor.time) && Number.isFinite(anchor.at));
+  if (!fresh.length) return anchors;
+
+  const from = Math.min(...fresh.map(anchor => anchor.time));
+  const to = Math.max(...fresh.map(anchor => anchor.time));
+  // Teaching a stretch again replaces what was there, rather than arguing with it
+  const kept = anchors.filter(anchor => anchor.time < from - 0.02 || anchor.time > to + 0.02);
+  return toAnchors([...kept, ...fresh.map(anchor => ({ time: Math.max(0, anchor.time), at: clamp(anchor.at, 0, 1) }))]);
 };
 
 /** Whether a song has been taught anything worth replaying */
-export const hasTiming = (pauses) => tidyPauses(pauses).some(([, to]) => to !== null);
+export const hasTiming = (anchors) => Array.isArray(anchors) && anchors.length > 0;

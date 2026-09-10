@@ -52,9 +52,11 @@ npm run build
 - **Drag the words**: While a track is pacing them, dragging the page left or
   right moves the playhead with it, the same way dragging the waveform moves the
   words. A tap is still a tap.
-- **Teach**: Press Teach, play the song, and hold a finger on the words wherever
-  the page should wait. Let go and it catches up, so the last line still lands
-  with the last bar. Save the timing and every later play follows it.
+- **Teach**: Press Teach, play the song, and put a finger on the words wherever
+  the page is wrong. Hold it still where the song waits; push it along where the
+  music has run ahead of the words. Let go and it carries on from there, so the
+  last line still lands with the last bar. Save the timing and every later play
+  follows it.
 - **Back Button**: Return to the home page
 
 ## Data Storage
