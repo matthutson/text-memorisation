@@ -80,11 +80,19 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const dragRef = useRef(null); // a hand dragging the words along the track
   const swallowClickRef = useRef(false); // a drag is not a tap on a line
   const lastSeekRef = useRef(0);
+  const measuredRef = useRef({ at: 0, furthest: 0 }); // how far the page can scroll
   const [columnWidth, setColumnWidth] = useState(() => numberOr(saved.columnWidth, window.innerWidth < 768 ? 100 : 160, { min: 60, max: 2000 }));
   // Size the text to fill the window. A song sized by hand keeps that size.
   const [autoFit, setAutoFit] = useState(() => boolOr(saved.autoFit, true));
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(() => numberOr(saved.autoScrollSpeed, 5, { min: 1, max: 10 })); // Speed from 1-10
-  const [countdownProgress, setCountdownProgress] = useState(100);
+  // The progress bar is written to directly. Putting it in state re-rendered
+  // the whole practice view, and a view this size takes long enough to build
+  // that a tap landing in the middle of one is simply lost.
+  const progressBarRef = useRef(null);
+  const showProgress = (percent) => {
+    const bar = progressBarRef.current;
+    if (bar) bar.style.width = `${Math.min(100, Math.max(0, percent))}%`;
+  };
   const [scrollPosition, setScrollPosition] = useState(0);
   const [isMetronomeActive, setIsMetronomeActive] = useState(false);
   const [metronomeBPM, setMetronomeBPM] = useState(() => numberOr(saved.metronomeBPM, 120, { min: 30, max: 300 }));
@@ -764,7 +772,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       setIsEditing(true);
       setVisibility(100);
       setAutoScrollChoice(false);
-      setCountdownProgress(100);
+      showProgress(100);
       setScrollPosition(0);
       if (scrollContainerRef.current) {
         scrollContainerRef.current.scrollLeft = 0;
@@ -1022,7 +1030,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     if (countdownRef.current) cancelAnimationFrame(countdownRef.current);
 
     if (!isAutoAdvancing || isBookmarkDriven || isTrackTimed) {
-      setCountdownProgress(100);
+      showProgress(100);
       return;
     }
 
@@ -1036,7 +1044,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     const updateCountdown = () => {
       const elapsed = Date.now() - startTime;
       const remaining = Math.max(0, 100 - (elapsed / delayMs) * 100);
-      setCountdownProgress(remaining);
+      showProgress(remaining);
 
       if (remaining > 0) {
         countdownRef.current = requestAnimationFrame(updateCountdown);
@@ -1108,8 +1116,22 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       const duration = engine?.duration || 0;
       if (container && duration > 0) {
         const now = engine.smoothTime;
-        const furthest = container.scrollWidth - container.clientWidth;
-        setHasOverflow(furthest > 4);
+
+        // Asking how wide the page is forces the browser to lay out every
+        // column and every word to answer, which is far too much to do sixty
+        // times a second on a phone. It only changes when the words or the
+        // window do, so it is worth asking twice a second at most.
+        const clock = performance.now();
+        if (clock - measuredRef.current.at > 500) {
+          measuredRef.current = { at: clock, furthest: container.scrollWidth - container.clientWidth };
+          setHasOverflow(measuredRef.current.furthest > 4);
+        }
+        // The bar shows how far through the song we are, whether or not there
+        // is anything to scroll
+        showProgress((now / duration) * 100);
+
+        const furthest = measuredRef.current.furthest;
+        if (furthest <= 0) return;
 
         // A hold in progress counts as an open pause, so the page stops under
         // the finger exactly as it will when this is played back
@@ -1127,10 +1149,6 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
           const host = columnHostRef.current;
           if (host) host.style.transform = `translateX(${-(target - whole).toFixed(3)}px)`;
         }
-        // Whole percents only: this runs every frame, and a state change every
-        // frame re-renders the whole practice view sixty times a second
-        const percent = Math.min(100, Math.round((now / duration) * 100));
-        setCountdownProgress(current => (current === percent ? current : percent));
       }
     };
 
@@ -1256,6 +1274,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeaching, engine, scrollMap]);
+
+  // Anything that changes the shape of the page makes the measurement stale
+  useEffect(() => {
+    measuredRef.current = { at: 0, furthest: measuredRef.current.furthest };
+    const onResize = () => { measuredRef.current = { at: 0, furthest: measuredRef.current.furthest }; };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [columnWidth, fontSize, text, currentTab, visibility, anchorWords]);
 
   // Timing kept here while the column was missing moves up to the song as soon
   // as the database can hold it, without anyone having to teach it again
@@ -1744,10 +1770,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
             {isAutoAdvancing && (
               <div className={`h-2 transition-colors ${isDarkMode ? 'bg-gray-700' : 'bg-gray-300'}`}>
                 <div
+                  ref={progressBarRef}
                   className={`h-full transition-colors ${isDarkMode ? 'bg-blue-400' : 'bg-black'}`}
-                  style={{
-                    width: `${countdownProgress}%`
-                  }}
+                  style={{ width: '0%' }}
                 />
               </div>
             )}
