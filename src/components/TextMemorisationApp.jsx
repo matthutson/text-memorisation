@@ -1091,18 +1091,25 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       const container = scrollContainerRef.current;
       const duration = engine?.duration || 0;
       if (container && duration > 0) {
-        const now = engine.currentTime;
+        const now = engine.smoothTime;
         const furthest = container.scrollWidth - container.clientWidth;
         setHasOverflow(furthest > 4);
 
         // A hold in progress counts as an open pause, so the page stops under
         // the finger exactly as it will when this is played back
         const held = holdRef.current === null ? scrollPauses : [...scrollPauses, [holdRef.current, null]];
-        const target = Math.round(positionAt(held, now, duration, furthest));
-        // Only nudge when it has actually moved, so a hand on the page is not
-        // fought over every frame, and never while that hand is dragging
-        if (!dragRef.current?.moved && Math.abs(container.scrollLeft - target) > 1) {
-          container.scrollLeft = target;
+        // Fractions matter: rounding to whole pixels is itself a stutter when
+        // a song crawls along at a fifth of a pixel a frame
+        const target = positionAt(held, now, duration, furthest);
+        // A scroll offset lands on whole pixels, and at a fifth of a pixel a
+        // frame that means moving once every few frames: the stutter you see.
+        // So the whole pixels are scrolled and the fraction is carried by a
+        // transform, which is free and has no such limit.
+        if (!dragRef.current?.moved) {
+          const whole = Math.floor(target);
+          if (Math.abs(container.scrollLeft - whole) > 0.5) container.scrollLeft = whole;
+          const host = columnHostRef.current;
+          if (host) host.style.transform = `translateX(${-(target - whole).toFixed(3)}px)`;
         }
         // Whole percents only: this runs every frame, and a state change every
         // frame re-renders the whole practice view sixty times a second
@@ -1111,8 +1118,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       }
     };
 
+    const host = columnHostRef.current;
     frame = requestAnimationFrame(follow);
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      cancelAnimationFrame(frame);
+      // Hand the sub-pixel offset back when the words stop being paced
+      if (host) host.style.transform = '';
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAutoAdvancing, isTrackTimed, engine, scrollPauses]);
 
   // Dragging the words is the same act as dragging the playhead, read the
@@ -1230,7 +1243,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const startHold = (event) => {
     if (!isTeaching || !engine?.duration || !engine.isPlaying) return;
     event.preventDefault();
-    holdRef.current = engine.currentTime;
+    holdRef.current = engine.smoothTime;
   };
 
   /** Let go: the page moves again, covering what is left in the time that is left */
@@ -1238,7 +1251,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     const from = holdRef.current;
     holdRef.current = null;
     if (from === null || !engine) return;
-    const to = engine.currentTime;
+    const to = engine.smoothTime;
     if (to <= from + 0.05) return; // a tap, not a hold
     setScrollPauses(current => tidyPauses([...current, [from, to]]));
   };

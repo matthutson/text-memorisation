@@ -73,6 +73,7 @@ export default class SongAudio {
     this.loop = null; // { start, end } in seconds
     this.listeners = {};
     this.pausedAt = 0;
+    this.clock = { estimate: 0, wall: 0 }; // the smoothed view of the position
 
     // A phone that locks, or a tab left for another app, suspends the audio
     // clock. Coming back does not restart it on its own, so the song would sit
@@ -130,6 +131,37 @@ export default class SongAudio {
 
   get isLoaded() {
     return this.tracks.length > 0;
+  }
+
+  /**
+   * The same position, but fit to watch.
+   *
+   * The real clock comes from the pitch shifter, which only moves when its
+   * processor runs: about eleven times a second, in steps. Anything drawn
+   * straight from it stutters. This runs a clock of its own between those
+   * steps, at whatever rate the song is being played, and leans it back
+   * towards the truth a little on every read.
+   */
+  get smoothTime() {
+    const now = performance.now();
+    const actual = this.currentTime;
+
+    if (!this.isPlaying) {
+      this.clock = { estimate: actual, wall: now };
+      return actual;
+    }
+
+    const elapsed = this.clock.wall ? (now - this.clock.wall) / 1000 : 0;
+    let estimate = this.clock.estimate + elapsed * this.tempo;
+    const drift = actual - estimate;
+    // A jump too big to be drift, from a seek or a loop coming round, is taken
+    // as it is. Otherwise lean towards the truth, but never backwards: a page
+    // that slips back a pixel reads as a stumble.
+    if (Math.abs(drift) > 0.3) estimate = actual;
+    else estimate = Math.max(this.clock.estimate, estimate + drift * 0.08);
+
+    this.clock = { estimate, wall: now };
+    return estimate;
   }
 
   /** Position in the song's own timeline, in seconds */

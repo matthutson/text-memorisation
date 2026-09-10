@@ -151,7 +151,8 @@ export default function SongPlayer({
     const tick = () => {
       const engine = engineRef.current;
       if (engine) {
-        const t = engine.currentTime;
+        // The smoothed clock, so the playhead glides rather than hops
+        const t = engine.smoothTime;
         timeRef.current = t;
         if (Math.abs(t - lastShown) >= 0.08) {
           lastShown = t;
