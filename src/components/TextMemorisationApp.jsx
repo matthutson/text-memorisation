@@ -156,29 +156,62 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
    * fits on one row. On a phone the words wrap and the chords, being a line of
    * their own, wrap somewhere else entirely.
    *
-   * So the pair is rebuilt as a row of small cells, each holding one chord over
-   * the piece of the lyric it was sitting on. The cells wrap as units, which
-   * keeps every chord over its own word however narrow the column gets.
+   * So the pair is rebuilt as a row of units, one per word, each carrying the
+   * chords that were written above that word. A unit never breaks, so a line
+   * only ever wraps between words, and every chord travels with its own word
+   * however narrow the column gets.
    */
-  const chordCells = (chordText, lyricText) => {
-    const cells = [];
+  const chordWordUnits = (chordText, lyricText) => {
+    const chords = [];
     let cursor = 0;
-
     while (cursor < chordText.length) {
       if (/\s/.test(chordText[cursor])) { cursor += 1; continue; }
-      const start = cursor;
+      const from = cursor;
       while (cursor < chordText.length && !/\s/.test(chordText[cursor])) cursor += 1;
-      cells.push({ column: start, chord: chordText.slice(start, cursor) });
+      chords.push({ column: from, chord: chordText.slice(from, cursor) });
     }
-    if (!cells.length) return null;
+    if (!chords.length) return null;
 
-    // Words before the first chord belong to nobody, so they lead the row
-    const rows = cells[0].column > 0 ? [{ chord: '', words: lyricText.slice(0, cells[0].column) }] : [];
-    cells.forEach((cell, index) => {
-      const next = cells[index + 1];
-      rows.push({ chord: cell.chord, words: lyricText.slice(cell.column, next ? next.column : undefined) });
+    // Each word, with the spaces that follow it, is one unbreakable unit
+    const words = [];
+    let at = 0;
+    while (at < lyricText.length) {
+      const from = at;
+      while (at < lyricText.length && !/\s/.test(lyricText[at])) at += 1;
+      const wordEnd = at;
+      while (at < lyricText.length && /\s/.test(lyricText[at])) at += 1;
+      words.push({ from, wordEnd, to: at, chords: [] });
+    }
+    if (!words.length) words.push({ from: 0, wordEnd: 0, to: 0, chords: [] });
+
+    // A chord in the gap between two words belongs to the word it points at
+    const trailing = [];
+    chords.forEach(({ column, chord }) => {
+      const inside = words.find(word => column >= word.from && column < word.wordEnd);
+      if (inside) {
+        inside.chords.push({ offset: column - inside.from, chord });
+        return;
+      }
+      const next = words.find(word => word.from > column);
+      if (next) next.chords.push({ offset: 0, chord });
+      else trailing.push(chord);
     });
-    return rows;
+
+    const units = words.map(word => {
+      const text = lyricText.slice(word.from, word.to);
+      if (!word.chords.length) return [{ chord: '', words: text }];
+
+      const cells = word.chords[0].offset > 0 ? [{ chord: '', words: text.slice(0, word.chords[0].offset) }] : [];
+      word.chords.forEach((held, index) => {
+        const next = word.chords[index + 1];
+        cells.push({ chord: held.chord, words: text.slice(held.offset, next ? next.offset : undefined) });
+      });
+      return cells;
+    });
+
+    // Chords written past the end of the words still have to be seen
+    if (trailing.length) units.push(trailing.map(chord => ({ chord, words: '' })));
+    return units;
   };
 
   // Spread the visible characters evenly across all hideable ones
@@ -300,11 +333,11 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         for (let at = 0; at < blocks.length; at += 1) {
           const block = blocks[at];
           const words = blocks[at + 1];
-          const rows = isChordBlock(block) && words && !isChordBlock(words) && !isSectionBlock(words)
-            ? chordCells(block.textContent, words.textContent)
+          const units = isChordBlock(block) && words && !isChordBlock(words) && !isSectionBlock(words)
+            ? chordWordUnits(block.textContent, words.textContent)
             : null;
 
-          if (!rows) {
+          if (!units) {
             children.push(block);
             continue;
           }
@@ -313,17 +346,24 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
           line.setAttribute('data-line-index', words.getAttribute('data-line-index'));
           line.setAttribute('data-chord-index', block.getAttribute('data-line-index'));
           line.setAttribute('data-chord-row', '');
-          rows.forEach(row => {
-            const cell = doc.createElement('span');
-            cell.className = 'chord-cell';
-            const chord = doc.createElement('span');
-            chord.className = 'chord-cell-chord';
-            chord.textContent = row.chord || '\u00a0';
-            const text = doc.createElement('span');
-            text.className = 'chord-cell-words';
-            text.textContent = row.words;
-            cell.append(chord, text);
-            line.appendChild(cell);
+          units.forEach(cells => {
+            // One word, and whatever chords were written above it. Nothing
+            // inside a unit can break, so words stay whole.
+            const unit = doc.createElement('span');
+            unit.className = 'chord-word';
+            cells.forEach(({ chord: name, words: text }) => {
+              const cell = doc.createElement('span');
+              cell.className = 'chord-cell';
+              const chord = doc.createElement('span');
+              chord.className = 'chord-cell-chord';
+              chord.textContent = name || '\u00a0';
+              const lyric = doc.createElement('span');
+              lyric.className = 'chord-cell-words';
+              lyric.textContent = text;
+              cell.append(chord, lyric);
+              unit.appendChild(cell);
+            });
+            line.appendChild(unit);
           });
           children.push(line);
           at += 1; // the words have been taken along with the chords
@@ -1544,6 +1584,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     <>
                     <style>{`
                       /* One chord over the words it belongs to, wrapping as a unit */
+                      .chord-word { display: inline-block; vertical-align: bottom; white-space: pre; }
                       .chord-cell { display: inline-block; vertical-align: bottom; white-space: pre; }
                       .chord-cell-chord { display: block; color: #3b82f6; font-weight: 400; line-height: 1.2; }
                       .chord-cell-words { display: block; line-height: 1.35; }
