@@ -4,6 +4,15 @@ import { supabase } from '../utils/supabase';
 import { getJobForText, queueBackingTrack, updateText } from '../utils/storage';
 import { getMinutesLeft, splitIntoStems } from '../utils/stemSplit';
 import { loadSettings, saveSettings } from '../utils/practiceSettings';
+import { displayName, inMixOrder, roleFor } from '../utils/stemRoles';
+
+// Left, middle, right is all the panning a practice mix needs, and three taps
+// take far less room than a slider on a phone.
+const PAN_POSITIONS = [
+    { value: -1, label: 'L', title: 'Pan this track left' },
+    { value: 0, label: 'C', title: 'Put this track in the middle' },
+    { value: 1, label: 'R', title: 'Pan this track right' }
+];
 
 const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onStemsUpdate, isVisible = true, engine }) => {
     const [isUploading, setIsUploading] = useState(false);
@@ -16,9 +25,16 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
     // Null until the field is touched, so the song's own link fills it in
     const [linkDraft, setLinkDraft] = useState(null);
     const [fetchError, setFetchError] = useState(null);
+    // The tools open themselves for a song that has nothing to mix yet
+    const [areToolsOpen, setAreToolsOpen] = useState(stems.length === 0);
     const link = linkDraft === null ? youtubeUrl : linkDraft;
 
-    const levelFor = (stem) => levels[stem.src] || { volume: stem.volume ?? 1, muted: !!stem.muted };
+    const levelFor = (stem) => ({
+        volume: stem.volume ?? 1,
+        muted: !!stem.muted,
+        pan: stem.pan ?? 0,
+        ...levels[stem.src]
+    });
 
     const setLevel = (index, stem, next) => {
         const merged = { ...levels, [stem.src]: next };
@@ -27,6 +43,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
         if (!engine) return;
         engine.setStemVolume(index, next.volume);
         engine.setStemMuted(index, next.muted);
+        engine.setStemPan(index, next.pan ?? 0);
     };
 
     // The engine arrives after the tracks have loaded, so the remembered mix is
@@ -38,6 +55,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
             if (!level) return;
             engine.setStemVolume(index, level.volume);
             engine.setStemMuted(index, level.muted);
+            engine.setStemPan(index, level.pan ?? 0);
         });
     }, [engine, stems, levels]);
 
@@ -275,7 +293,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
                 flexShrink: 0,
                 borderTop: '1px solid var(--gray-a5)',
                 background: 'var(--color-panel-solid)',
-                maxHeight: '45vh',
+                maxHeight: '38vh',
                 overflowY: 'auto'
             }}
         >
@@ -297,7 +315,80 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
                 </Box>
             )}
 
-            <Flex direction={{ initial: 'column', md: 'row' }} gap="5" p="4" align="start">
+            {/* The mixer is what gets used; the tools that fill it fold away */}
+            <Flex align="center" justify="between" px={{ initial: '3', sm: '4' }} pt="2" pb="1" gap="3">
+                <Text size="1" weight="bold" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                    Mix
+                </Text>
+                <Button size="1" variant={areToolsOpen ? 'solid' : 'soft'} onClick={() => setAreToolsOpen(!areToolsOpen)}>
+                    {areToolsOpen ? 'Done' : 'Add or split'}
+                </Button>
+            </Flex>
+
+            <Box px={{ initial: '3', sm: '4' }} pb="2">
+                {stems.length === 0 && !isUploading && (
+                    <Text as="div" size="1" color="gray">
+                        No tracks yet. Add an audio file, split one, or fetch a link.
+                    </Text>
+                )}
+
+                <Flex direction="column" gap="1">
+                    {inMixOrder(stems).map(({ stem, index }) => {
+                        const level = levelFor(stem);
+                        const pan = level.pan ?? 0;
+                        return (
+                            <Flex key={stem.src} align="center" gap="2">
+                                <IconButton
+                                    size="1"
+                                    variant={level.muted ? 'solid' : 'soft'}
+                                    color={level.muted ? 'red' : 'gray'}
+                                    onClick={() => setLevel(index, stem, { ...level, muted: !level.muted })}
+                                    title={level.muted ? 'Unmute' : 'Mute'}
+                                >
+                                    {level.muted ? 'M' : '♪'}
+                                </IconButton>
+                                <Text
+                                    size="1"
+                                    title={stem.label}
+                                    style={{
+                                        width: 116, flexShrink: 0, color: roleFor(stem).color, fontWeight: 600,
+                                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'
+                                    }}
+                                >
+                                    {displayName(stem, index)}
+                                </Text>
+                                <Flex gap="1" flexShrink="0">
+                                    {PAN_POSITIONS.map(position => (
+                                        <IconButton
+                                            key={position.value}
+                                            size="1"
+                                            variant={pan === position.value ? 'solid' : 'soft'}
+                                            color={pan === position.value ? 'blue' : 'gray'}
+                                            onClick={() => setLevel(index, stem, { ...level, pan: position.value })}
+                                            title={position.title}
+                                        >
+                                            <Text size="1">{position.label}</Text>
+                                        </IconButton>
+                                    ))}
+                                </Flex>
+                                <Box style={{ flex: 1, minWidth: 80, maxWidth: 260 }}>
+                                    <Slider
+                                        size="1"
+                                        value={[Math.round(level.volume * 100)]}
+                                        onValueChange={([value]) => setLevel(index, stem, { ...level, volume: value / 100 })}
+                                        min={0}
+                                        max={100}
+                                    />
+                                </Box>
+                            </Flex>
+                        );
+                    })}
+                </Flex>
+            </Box>
+
+            {areToolsOpen && (
+                <Flex direction={{ initial: 'column', sm: 'row' }} gap="4" px={{ initial: '3', sm: '4' }} pb="3" align="start"
+                      style={{ borderTop: '1px solid var(--gray-a4)', paddingTop: 'var(--space-3)' }}>
                 {/* Add existing stems */}
                 <Flex direction="column" gap="2" style={{ minWidth: 200 }}>
                     <Text size="1" weight="bold" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -395,51 +486,8 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
                         )}
                     </Box>
                 </Flex>
-
-                {/* Mixer */}
-                <Box style={{ flex: 1, minWidth: 240, width: '100%' }}>
-                    <Text as="div" size="1" weight="bold" color="gray" mb="2" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                        Mix
-                    </Text>
-
-                    {stems.length === 0 && !isUploading && (
-                        <Text as="div" size="1" color="gray">
-                            No tracks yet. Add an audio file, split one, or fetch a link.
-                        </Text>
-                    )}
-
-                    <Flex direction="column" gap="2">
-                        {stems.map((stem, index) => {
-                            const level = levelFor(stem);
-                            return (
-                                <Flex key={stem.src} align="center" gap="3">
-                                    <IconButton
-                                        size="1"
-                                        variant={level.muted ? 'solid' : 'soft'}
-                                        color={level.muted ? 'red' : 'gray'}
-                                        onClick={() => setLevel(index, stem, { ...level, muted: !level.muted })}
-                                        title={level.muted ? 'Unmute' : 'Mute'}
-                                    >
-                                        {level.muted ? 'M' : '♪'}
-                                    </IconButton>
-                                    <Text size="2" style={{ width: 150, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                        {stem.label}
-                                    </Text>
-                                    <Box style={{ flex: 1, maxWidth: 220 }}>
-                                        <Slider
-                                            size="1"
-                                            value={[Math.round(level.volume * 100)]}
-                                            onValueChange={([value]) => setLevel(index, stem, { ...level, volume: value / 100 })}
-                                            min={0}
-                                            max={100}
-                                        />
-                                    </Box>
-                                </Flex>
-                            );
-                        })}
-                    </Flex>
-                </Box>
-            </Flex>
+                </Flex>
+            )}
         </Box>
     );
 };

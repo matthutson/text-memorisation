@@ -65,7 +65,7 @@ export default class SongAudio {
   constructor() {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     this.context = new AudioContextClass();
-    this.tracks = []; // { src, buffer, shifter, gain, source, volume, muted }
+    this.tracks = []; // { src, buffer, shifter, gain, panner, source, volume, muted, pan }
     this.isPlaying = false;
     this.duration = 0;
     this.tempo = 1;
@@ -105,8 +105,10 @@ export default class SongAudio {
       buffer,
       volume: stem.volume ?? 1,
       muted: !!stem.muted,
+      pan: stem.pan ?? 0, // -1 hard left, 0 centre, 1 hard right
       shifter: null,
       gain: null,
+      panner: null,
       source: null
     }));
 
@@ -151,11 +153,17 @@ export default class SongAudio {
 
       const gain = this.context.createGain();
       gain.gain.value = track.muted ? 0 : track.volume;
+      // Panning a part away from the middle is how a singer hears their own
+      // line against the rest, so every stem gets its own panner.
+      const panner = this.context.createStereoPanner();
+      panner.pan.value = track.pan;
       shifter.connect(gain);
-      gain.connect(this.context.destination);
+      gain.connect(panner);
+      panner.connect(this.context.destination);
 
       track.shifter = shifter;
       track.gain = gain;
+      track.panner = panner;
       track.source = source;
     });
   }
@@ -170,8 +178,10 @@ export default class SongAudio {
         }
       }
       if (track.gain) track.gain.disconnect();
+      if (track.panner) track.panner.disconnect();
       track.shifter = null;
       track.gain = null;
+      track.panner = null;
       track.source = null;
     });
   }
@@ -262,6 +272,14 @@ export default class SongAudio {
     if (!track) return;
     track.volume = volume;
     if (track.gain) track.gain.gain.value = track.muted ? 0 : volume;
+  }
+
+  /** -1 is hard left, 0 the middle, 1 hard right */
+  setStemPan(index, pan) {
+    const track = this.tracks[index];
+    if (!track) return;
+    track.pan = Math.min(1, Math.max(-1, pan));
+    if (track.panner) track.panner.pan.value = track.pan;
   }
 
   setStemMuted(index, muted) {

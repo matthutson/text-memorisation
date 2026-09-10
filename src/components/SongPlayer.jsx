@@ -503,7 +503,7 @@ export default function SongPlayer({
       </div>
 
       {/* Transport, with the play control given the most weight */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px 4px' }}>
+      <div className="player-transport" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px 4px' }}>
         <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: colors.dim, minWidth: 56 }}>
           {formatTime(displayTime)}
         </span>
@@ -515,6 +515,7 @@ export default function SongPlayer({
             <Glyph name="back5" size={18} />
           </button>
           <button
+            data-play
             style={button(true, { height: 44, minWidth: 76, borderRadius: 22 })}
             onClick={togglePlay}
             title={isPlaying ? 'Pause' : 'Play'}
@@ -534,7 +535,7 @@ export default function SongPlayer({
       </div>
 
       {/* Sections */}
-      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', padding: '4px 12px 10px' }}>
+      <div className="player-sections" style={{ display: 'flex', alignItems: 'flex-end', gap: 14, flexWrap: 'wrap', padding: '4px 12px 10px' }}>
         <Section caption="Loop">
           <button style={button(loopA !== null)} onClick={setA} title="Set the loop start at the playhead">A</button>
           <button style={button(loopB !== null)} onClick={setB} title="Set the loop end at the playhead">B</button>
@@ -615,7 +616,15 @@ export default function SongPlayer({
 
       <style>{`
         @media (max-width: 640px) {
+          /* A phone screen is mostly for the words, so the transport gives
+             back every row it can: the loop nudges go, the padding shrinks,
+             and the buttons come in to where a thumb still reaches. */
           .player-advanced { display: none !important; }
+          .player-transport { gap: 6px !important; padding: 5px 8px 2px !important; }
+          .player-sections { gap: 9px !important; padding: 2px 8px 6px !important; }
+          .player-sections button { height: 28px !important; min-width: 30px !important; padding: 0 6px !important; }
+          .player-transport button { height: 32px !important; }
+          .player-transport button[data-play] { height: 38px !important; min-width: 62px !important; }
         }
       `}</style>
     </div>
