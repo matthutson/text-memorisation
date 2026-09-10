@@ -7,8 +7,6 @@ import { loadSettings, saveSettings } from '../utils/practiceSettings';
 
 const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onStemsUpdate, isVisible = true, engine }) => {
     const [isUploading, setIsUploading] = useState(false);
-    const [bucketStatus, setBucketStatus] = useState('checking'); // 'checking', 'ready', 'error'
-    const [bucketError, setBucketError] = useState(null);
     const [splitProgress, setSplitProgress] = useState(null); // { percent, message }
     const [splitError, setSplitError] = useState(null);
     const [minutesLeft, setMinutesLeft] = useState(null); // null until the API answers, and when it isn't configured
@@ -44,50 +42,6 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
     }, [engine, stems, levels]);
 
     useEffect(() => {
-        // Debug: Log textId to verify it's being passed correctly
-        console.log('[StemPlayerWrapper] Component mounted with textId:', textId);
-        console.log('[StemPlayerWrapper] Initial stems:', stems);
-
-        // Check if stems bucket exists and list buckets
-        const checkBucket = async () => {
-            try {
-                // First, list all buckets to see what's available
-                const { data: buckets, error: listError } = await supabase.storage.listBuckets();
-                if (listError) {
-                    console.error('[StemPlayerWrapper] Error listing buckets:', listError);
-                } else {
-                    console.log('[StemPlayerWrapper] Available buckets:', buckets);
-                }
-
-                // Then check the specific stems bucket
-                const { data, error } = await supabase.storage.getBucket('stems');
-                if (error) {
-                    console.error('[StemPlayerWrapper] Stems bucket does not exist or is not accessible:', error);
-                    console.log('[StemPlayerWrapper] Please create a storage bucket named "stems" in your Supabase dashboard');
-                    console.log('[StemPlayerWrapper] Go to: Storage > New bucket > Name: stems, Public: true');
-                    console.log('[StemPlayerWrapper] Instructions:');
-                    console.log('[StemPlayerWrapper] 1. Go to https://quxjesuarzbqqoahogma.supabase.co');
-                    console.log('[StemPlayerWrapper] 2. Navigate to Storage');
-                    console.log('[StemPlayerWrapper] 3. Click "New bucket"');
-                    console.log('[StemPlayerWrapper] 4. Name: stems');
-                    console.log('[StemPlayerWrapper] 5. Public bucket: ON');
-                    console.log('[StemPlayerWrapper] 6. File size limit: 50MB (or higher for large audio files)');
-                    console.log('[StemPlayerWrapper] 7. See SUPABASE_SETUP.md for detailed RLS policy configuration');
-
-                    setBucketStatus('error');
-                    setBucketError('Storage bucket "stems" not found. See console and SUPABASE_SETUP.md for setup instructions.');
-                } else {
-                    console.log('[StemPlayerWrapper] Stems bucket found:', data);
-                    setBucketStatus('ready');
-                    setBucketError(null);
-                }
-            } catch (err) {
-                console.error('[StemPlayerWrapper] Error checking bucket:', err);
-                setBucketStatus('error');
-                setBucketError('Failed to connect to storage. Check console for details.');
-            }
-        };
-        checkBucket();
         getMinutesLeft().then(setMinutesLeft);
     }, []);
 
@@ -142,7 +96,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
 
                 // Sanitize filename to remove invalid characters
                 // Supabase Storage doesn't allow: [ ] and other special characters
-                const sanitizedFileName = file.name.replace(/[\[\]]/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_');
+                const sanitizedFileName = file.name.replace(/[[\]]/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_');
 
                 // 1. Upload file to Supabase Storage
                 const fileName = `${textId}/${Date.now()}-${sanitizedFileName}`;
@@ -440,10 +394,6 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
                             <Text as="div" size="1" color="red" mt="1">{fetchError}</Text>
                         )}
                     </Box>
-
-                    {bucketStatus === 'error' && bucketError && stems.length === 0 && (
-                        <Text as="div" size="1" color="red">{bucketError}</Text>
-                    )}
                 </Flex>
 
                 {/* Mixer */}
