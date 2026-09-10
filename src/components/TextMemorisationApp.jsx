@@ -11,7 +11,13 @@ import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceS
 export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
   // How this song was left last time it was practised
   const songId = textData?.id;
-  const saved = useMemo(() => loadSettings(songId), [songId]);
+  const stored = useMemo(() => loadSettings(songId), [songId]);
+  // A size chosen by hand on a laptop means nothing on a phone, so sizes only
+  // come back on the kind of screen they were set on
+  const screenKind = window.innerWidth < 768 ? 'phone' : 'desktop';
+  const saved = stored.screenKind && stored.screenKind !== screenKind
+    ? { ...stored, fontSize: undefined, columnWidth: undefined, autoFit: undefined }
+    : stored;
 
   const [text, setText] = useState(initialText);
   const [stems, setStems] = useState(textData?.stems || []);
@@ -43,17 +49,22 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [jumpToken, setJumpToken] = useState(0); // bumped when a bookmark asks for a jump
   // The transport bar owns playback; the mixer needs the same engine
   const handleEngineReady = useCallback((instance) => setEngine(instance), []);
+  // null means "not decided for this song", which reads as on once a track is
+  // loaded: with a recording there is a right answer, so it need not be asked for
+  const [autoScrollChoice, setAutoScrollChoice] = useState(
+    () => (typeof saved.autoScroll === 'boolean' ? saved.autoScroll : null)
+  );
   // Bookmarks say exactly where a line falls, so where they exist they steer.
   // Failing that, a loaded track can still pace the scroll by its own length.
   const isBookmarkDriven = isFollowing && bookmarks.length > 0;
   const isTrackTimed = !!engine?.duration && !isBookmarkDriven;
+  const isAutoAdvancing = autoScrollChoice === null ? !!engine?.duration : autoScrollChoice;
   // A song that already fits the window has nothing to scroll, and saying so
   // is better than a button that looks broken
   const [hasOverflow, setHasOverflow] = useState(false);
   const [columnWidth, setColumnWidth] = useState(() => numberOr(saved.columnWidth, window.innerWidth < 768 ? 100 : 160, { min: 60, max: 2000 }));
   // Size the text to fill the window. A song sized by hand keeps that size.
   const [autoFit, setAutoFit] = useState(() => boolOr(saved.autoFit, true));
-  const [isAutoAdvancing, setIsAutoAdvancing] = useState(false);
   const [autoScrollSpeed, setAutoScrollSpeed] = useState(() => numberOr(saved.autoScrollSpeed, 5, { min: 1, max: 10 })); // Speed from 1-10
   const [countdownProgress, setCountdownProgress] = useState(100);
   const [scrollPosition, setScrollPosition] = useState(0);
@@ -129,6 +140,37 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       }
       return wordsSeen <= wordCount;
     };
+  };
+
+  /**
+   * A chord chart aligns chords by column: the chord sits at the same character
+   * position as the syllable it belongs to. That only survives while the line
+   * fits on one row. On a phone the words wrap and the chords, being a line of
+   * their own, wrap somewhere else entirely.
+   *
+   * So the pair is rebuilt as a row of small cells, each holding one chord over
+   * the piece of the lyric it was sitting on. The cells wrap as units, which
+   * keeps every chord over its own word however narrow the column gets.
+   */
+  const chordCells = (chordText, lyricText) => {
+    const cells = [];
+    let cursor = 0;
+
+    while (cursor < chordText.length) {
+      if (/\s/.test(chordText[cursor])) { cursor += 1; continue; }
+      const start = cursor;
+      while (cursor < chordText.length && !/\s/.test(chordText[cursor])) cursor += 1;
+      cells.push({ column: start, chord: chordText.slice(start, cursor) });
+    }
+    if (!cells.length) return null;
+
+    // Words before the first chord belong to nobody, so they lead the row
+    const rows = cells[0].column > 0 ? [{ chord: '', words: lyricText.slice(0, cells[0].column) }] : [];
+    cells.forEach((cell, index) => {
+      const next = cells[index + 1];
+      rows.push({ chord: cell.chord, words: lyricText.slice(cell.column, next ? next.column : undefined) });
+    });
+    return rows;
   };
 
   // Spread the visible characters evenly across all hideable ones
@@ -241,13 +283,48 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
           node.textContent = newContent;
         }
 
+        const isChordBlock = (block) => block?.getAttribute('data-chord-line') === 'true';
+        const isSectionBlock = (block) => block?.hasAttribute('data-always-visible');
+
+        // Fold each chord line into the words underneath it, so the two travel
+        // together through a wrap instead of drifting apart
+        const children = [];
+        for (let at = 0; at < blocks.length; at += 1) {
+          const block = blocks[at];
+          const words = blocks[at + 1];
+          const rows = isChordBlock(block) && words && !isChordBlock(words) && !isSectionBlock(words)
+            ? chordCells(block.textContent, words.textContent)
+            : null;
+
+          if (!rows) {
+            children.push(block);
+            continue;
+          }
+
+          const line = doc.createElement('div');
+          line.setAttribute('data-line-index', words.getAttribute('data-line-index'));
+          line.setAttribute('data-chord-index', block.getAttribute('data-line-index'));
+          line.setAttribute('data-chord-row', '');
+          rows.forEach(row => {
+            const cell = doc.createElement('span');
+            cell.className = 'chord-cell';
+            const chord = doc.createElement('span');
+            chord.className = 'chord-cell-chord';
+            chord.textContent = row.chord || '\u00a0';
+            const text = doc.createElement('span');
+            text.className = 'chord-cell-words';
+            text.textContent = row.words;
+            cell.append(chord, text);
+            line.appendChild(cell);
+          });
+          children.push(line);
+          at += 1; // the words have been taken along with the chords
+        }
+
         // A chord line and the words under it are one unit: wrap them so a
         // column break can never land between them. A section heading takes
         // the line that follows it along too, so it is never left dangling.
         // Grouping the leaves also flattens away any wrapper they sat in.
-        const children = blocks;
-        const isChordBlock = (block) => block?.getAttribute('data-chord-line') === 'true';
-        const isSectionBlock = (block) => block?.hasAttribute('data-always-visible');
 
         const groupSizes = [];
         const wrapped = [];
@@ -255,10 +332,10 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         while (index < children.length) {
           const block = children[index];
           let size = 1;
-          if (isSectionBlock(block)) {
-            if (isChordBlock(children[index + 1])) size = 3;
-            else if (children[index + 1]) size = 2;
+          if (isSectionBlock(block) && children[index + 1]) {
+            size = 2;
           } else if (isChordBlock(block) && children[index + 1]) {
+            // A chord line with no words under it still leads the next line
             size = 2;
           }
 
@@ -455,7 +532,10 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     lastJumpRef.current = jumpToken;
     if (activeLine === null || (!isFollowing && !isJump)) return;
 
-    const element = container.querySelector(`[data-line-index="${activeLine}"]`);
+    // A bookmark set on a chord line still finds its row, now that the chords
+    // live inside the line they belong to
+    const element = container.querySelector(`[data-line-index="${activeLine}"]`)
+      || container.querySelector(`[data-chord-index="${activeLine}"]`);
     if (!element) return;
     element.classList.add('lyric-line-active');
 
@@ -512,15 +592,30 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     const textHost = textHostRef.current;
     if (!container || !columnHost || !textHost || !fitDataRef.current.lineTexts.length) return;
 
+    // A phone cannot hold a whole song at a readable size, and shrinking the
+    // words until it does makes them unreadable. So a narrow screen gets one
+    // column the width of the screen at a comfortable size, and the song runs
+    // off to the right for the track to scroll through. Chords now wrap with
+    // their own words, so a line that will not fit costs nothing.
+    const available = container.clientWidth - 64;
+    if (window.innerWidth < 768) {
+      setFontSize(15);
+      setColumnWidth(Math.max(160, available));
+      return;
+    }
+
     const previousFont = textHost.style.fontSize;
     const previousWidth = columnHost.style.columnWidth;
+    const previousMax = columnHost.style.getPropertyValue('--column-max');
 
     // The column has to hold the longest line, or lines wrap and the chords
-    // stop lining up with the words
+    // stop lining up with the words. The wrap limit has to move with the trial
+    // width, or every size is measured against the width of the last one.
     const tryTheSize = (size) => {
       const width = Math.ceil(longestLineWidth(size)) + 4;
       textHost.style.fontSize = `${size}px`;
       columnHost.style.columnWidth = `${width}px`;
+      columnHost.style.setProperty('--column-max', `${width}px`);
       const overflow = container.scrollWidth - container.clientWidth; // forces layout
       return { fits: overflow <= 1, width };
     };
@@ -541,10 +636,10 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
     textHost.style.fontSize = previousFont;
     columnHost.style.columnWidth = previousWidth;
+    columnHost.style.setProperty('--column-max', previousMax);
 
     // Songs too long for the window keep the smallest readable size and
     // scroll, but never wider than the window itself
-    const available = container.clientWidth - 64;
     const chosen = best || {
       size: 8,
       width: Math.min(Math.ceil(longestLineWidth(8)) + 4, Math.max(120, available))
@@ -576,6 +671,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       visibility,
       anchorWords,
       isFollowing,
+      autoScroll: autoScrollChoice,
+      screenKind,
       autoFit,
       fontSize,
       columnWidth,
@@ -583,8 +680,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       metronomeBPM,
       metronomeMeter
     });
-  }, [songId, visibility, anchorWords, isFollowing, autoFit, fontSize, columnWidth,
-      autoScrollSpeed, metronomeBPM, metronomeMeter]);
+  }, [songId, visibility, anchorWords, isFollowing, autoScrollChoice, screenKind, autoFit,
+      fontSize, columnWidth, autoScrollSpeed, metronomeBPM, metronomeMeter]);
 
   const handleStartPractising = () => {
     if (text.trim()) {
@@ -602,7 +699,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     } else {
       setIsEditing(true);
       setVisibility(100);
-      setIsAutoAdvancing(false);
+      setAutoScrollChoice(false);
       setCountdownProgress(100);
       setScrollPosition(0);
       if (scrollContainerRef.current) {
@@ -988,9 +1085,24 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         ) : (
           <div className="flex flex-col h-full overflow-hidden">
             {/* Unified Control Bar — visible on all screen sizes */}
-            <div className={`border-b flex-shrink-0 transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
+            <div className={`practice-header border-b flex-shrink-0 transition-colors ${isDarkMode ? 'border-gray-700 bg-gray-800' : 'border-gray-200 bg-white'}`}>
+              <style>{`
+                .practice-header .header-short { display: none; }
+                /* On a phone the header is overhead: the words matter more, so
+                   the labels go, the controls shrink and it stays on one row. */
+                @media (max-width: 640px) {
+                  .practice-header .header-row { gap: 8px !important; padding: 4px 8px !important; }
+                  .practice-header .header-label { display: none !important; }
+                  .practice-header button { min-height: 30px !important; height: 30px !important; }
+                  .practice-header .header-slider { width: 76px !important; }
+                  .practice-header button { font-size: 11px !important; padding: 0 8px !important; }
+                  .practice-header .header-tabs-optional { display: none !important; }
+                  .practice-header .header-words { width: 22px !important; }
+                  .practice-header .header-short { display: inline !important; }
+                }
+              `}</style>
               {/* Row 1: Navigation + Core Controls */}
-              <Flex align="center" gap="3" wrap="wrap" px="3" py="2">
+              <Flex className="header-row" align="center" gap="3" wrap="wrap" px="3" py="2">
                 {/* Back button */}
                 <Tooltip content="Back to list">
                   <IconButton variant="ghost" size="3" onClick={handleReset} style={{ flexShrink: 0 }}>
@@ -1000,8 +1112,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   </IconButton>
                 </Tooltip>
 
-                {/* Tab switcher */}
-                <Flex gap="1" shrink="0">
+                {/* Tab switcher. On a phone it only earns its width once the
+                    song actually has sheet music to switch to. */}
+                <Flex gap="1" shrink="0" className={musicXMLFile ? undefined : 'header-tabs-optional'}>
                   <Button
                     variant={currentTab === 'text' ? 'solid' : 'soft'}
                     color="gray"
@@ -1029,8 +1142,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   <>
                     <Separator orientation="vertical" size="1" />
                     <Flex align="center" gap="2" shrink="0">
-                      <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hide Text</Text>
-                      <div style={{ width: 80 }}>
+                      <Text className="header-label" size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Hide Text</Text>
+                      <div className="header-slider" style={{ width: 80 }}>
                         <RadixSlider
                           value={[visibility]}
                           onValueChange={(val) => setVisibility(val[0])}
@@ -1040,19 +1153,20 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                           size="2"
                         />
                       </div>
-                      <Text size="2" style={{ width: 40, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{visibility}%</Text>
+                      <Text className="header-label" size="2" style={{ width: 40, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{visibility}%</Text>
                     </Flex>
 
                     {/* How many words survive the hiding, so it sits with the slider */}
                     <Flex align="center" gap="2" shrink="0">
                       <Tooltip content="Words kept visible at the start of every line, however far the slider goes">
-                        <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Keep</Text>
+                        <Text className="header-label" size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Keep</Text>
                       </Tooltip>
                       <IconButton variant="outline" size="2" onClick={() => setAnchorWords(Math.max(0, anchorWords - 1))}>
                         <span style={{ fontSize: 15, fontWeight: 'bold', lineHeight: 1 }}>−</span>
                       </IconButton>
-                      <Text size="2" style={{ width: 52, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                        {anchorWords === 0 ? 'none' : `${anchorWords} word${anchorWords > 1 ? 's' : ''}`}
+                      <Text className="header-words" size="2" style={{ width: 52, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                        <span className="header-label">{anchorWords === 0 ? 'none' : `${anchorWords} word${anchorWords > 1 ? 's' : ''}`}</span>
+                        <span className="header-short">{anchorWords === 0 ? '0' : anchorWords}</span>
                       </Text>
                       <IconButton variant="outline" size="2" onClick={() => setAnchorWords(Math.min(5, anchorWords + 1))}>
                         <span style={{ fontSize: 15, fontWeight: 'bold', lineHeight: 1 }}>+</span>
@@ -1178,7 +1292,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       variant={isAutoAdvancing ? 'solid' : 'outline'}
                       color={isAutoAdvancing ? 'blue' : 'gray'}
                       size="2"
-                      onClick={() => setIsAutoAdvancing(!isAutoAdvancing)}
+                      onClick={() => setAutoScrollChoice(!isAutoAdvancing)}
                     >
                       {isAutoAdvancing ? 'Stop' : 'Auto'}
                     </Button>
@@ -1277,6 +1391,19 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
                   {/* Text Tab Content */}
                   {currentTab === 'text' && (
+                    <>
+                    <style>{`
+                      /* One chord over the words it belongs to, wrapping as a unit */
+                      .chord-cell { display: inline-block; vertical-align: bottom; white-space: pre; }
+                      .chord-cell-chord { display: block; color: #3b82f6; font-weight: 400; line-height: 1.2; }
+                      .chord-cell-words { display: block; line-height: 1.35; }
+                      /* A chord past the end of the words still needs a line to sit on */
+                      .chord-cell-words:empty::after { content: "\\00a0"; }
+                      [data-chord-row] { margin-bottom: 0.15em; }
+                      /* Lines wrap inside their column rather than running off
+                         the edge of it, which is what a narrow screen needs */
+                      [data-lyric-group] { max-width: var(--column-max, none); }
+                    `}</style>
                     <div
                       ref={scrollContainerRef}
                       onClick={handleLyricClick}
@@ -1292,6 +1419,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         ref={columnHostRef}
                         className={`transition-colors ${isDarkMode ? 'text-white' : 'text-black'}`}
                         style={{
+                          '--column-max': `${columnWidth}px`,
                           columnWidth: `${columnWidth}px`,
                           columnGap: '3rem',
                           columnRule: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
@@ -1304,6 +1432,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                         {/* Song info header */}
                         {textData && (textData.title || textData.artist) && (
                           <div ref={headerRef} style={{
+                            maxWidth: 'var(--column-max, none)',
                             marginBottom: '2rem',
                             paddingBottom: '1rem',
                             borderBottom: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
@@ -1376,6 +1505,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
                       </div>
                     </div>
+                    </>
                   )}
 
                   {/* Music Tab Content */}
