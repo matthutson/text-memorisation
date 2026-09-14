@@ -1,8 +1,16 @@
 // Playback for the practice view.
 //
-// Every stem runs through its own SoundTouch pitch shifter, so speed and key
-// are separate live controls: slowing a song down no longer drops its pitch,
-// and transposing takes effect immediately instead of re-rendering the file.
+// Speed and key are separate live controls: slowing a song down does not drop
+// its pitch, and transposing takes effect immediately instead of re-rendering
+// the file. That is done by SoundTouch, which runs in JavaScript on the same
+// thread as the page, and with several stems it runs often enough to be felt:
+// taps get dropped while a song plays.
+//
+// So it is only used when it is needed. At normal speed in the original key,
+// which is most practice, each stem is an ordinary buffer source and the
+// browser plays it away from the page entirely. Changing speed or key swaps
+// the graph over at the current position, and changing them back swaps it
+// home again.
 //
 // Positions are always reported in the song's own timeline. SoundTouch reads
 // the source at a rate set by the tempo, and the position we track is the
@@ -65,7 +73,10 @@ export default class SongAudio {
   constructor() {
     const AudioContextClass = window.AudioContext || window.webkitAudioContext;
     this.context = new AudioContextClass();
-    this.tracks = []; // { src, buffer, shifter, gain, panner, source, volume, muted, pan }
+    this.tracks = []; // { src, buffer, shifter, node, gain, panner, source, volume, muted, pan }
+    this.isPlain = true; // playing straight, without the shifter in the way
+    this.startedAt = 0;  // context time when the straight playback began
+    this.startOffset = 0; // and where in the song that was
     this.isPlaying = false;
     this.duration = 0;
     this.tempo = 1;
@@ -119,6 +130,7 @@ export default class SongAudio {
       muted: !!stem.muted,
       pan: stem.pan ?? 0, // -1 hard left, 0 centre, 1 hard right
       shifter: null,
+      node: null,
       gain: null,
       panner: null,
       source: null
@@ -166,14 +178,49 @@ export default class SongAudio {
 
   /** Position in the song's own timeline, in seconds */
   get currentTime() {
+    if (this.isPlain) {
+      if (!this.isPlaying) return this.pausedAt;
+      // The context's own clock, which is exact and costs nothing to read
+      const at = this.startOffset + (this.context.currentTime - this.startedAt);
+      return Math.min(this.#fold(at), this.duration);
+    }
     const track = this.tracks[0];
     if (!track || !track.shifter) return this.pausedAt;
     const frames = track.source.fold(track.shifter.sourcePosition);
     return frames / this.context.sampleRate;
   }
 
+  /** A position past the end of the loop, brought back round */
+  #fold(at) {
+    const loop = this.loop;
+    if (!loop || at < loop.start) return at;
+    const length = loop.end - loop.start;
+    if (length <= 0) return at;
+    return loop.start + ((at - loop.start) % length);
+  }
+
+  /** Volume and position in the stereo field, the same either way */
+  #output(track) {
+    const gain = this.context.createGain();
+    gain.gain.value = track.muted ? 0 : track.volume;
+    // Panning a part away from the middle is how a singer hears their own
+    // line against the rest, so every stem gets its own panner.
+    const panner = this.context.createStereoPanner();
+    panner.pan.value = track.pan;
+    gain.connect(panner);
+    panner.connect(this.context.destination);
+    track.gain = gain;
+    track.panner = panner;
+    return gain;
+  }
+
   /** Build the graph for every stem, starting at `startAt` seconds */
   #start(startAt) {
+    this.isPlain = this.tempo === 1 && this.semitones === 0;
+    if (this.isPlain) {
+      this.#startPlain(startAt);
+      return;
+    }
     const startFrame = Math.floor(startAt * this.context.sampleRate);
 
     this.tracks.forEach(track => {
@@ -194,25 +241,50 @@ export default class SongAudio {
       shifter.tempo = this.tempo;
       shifter.pitchSemitones = this.semitones;
 
-      const gain = this.context.createGain();
-      gain.gain.value = track.muted ? 0 : track.volume;
-      // Panning a part away from the middle is how a singer hears their own
-      // line against the rest, so every stem gets its own panner.
-      const panner = this.context.createStereoPanner();
-      panner.pan.value = track.pan;
-      shifter.connect(gain);
-      gain.connect(panner);
-      panner.connect(this.context.destination);
-
+      shifter.connect(this.#output(track));
       track.shifter = shifter;
-      track.gain = gain;
-      track.panner = panner;
       track.source = source;
+    });
+  }
+
+  /** The straight path: the browser plays the buffers, the page does nothing */
+  #startPlain(startAt) {
+    this.startedAt = this.context.currentTime;
+    this.startOffset = startAt;
+
+    this.tracks.forEach(track => {
+      const node = this.context.createBufferSource();
+      node.buffer = track.buffer;
+      if (this.loop) {
+        node.loop = true;
+        node.loopStart = this.loop.start;
+        node.loopEnd = this.loop.end;
+      }
+      node.connect(this.#output(track));
+      node.onended = () => {
+        // The longest stem decides when the song is over
+        if (!this.loop && this.isPlaying && track.buffer.duration >= this.duration - 0.05) {
+          this.pause();
+          this.emit('end');
+        }
+      };
+      node.start(0, Math.min(startAt, Math.max(0, track.buffer.duration - 0.01)));
+      track.node = node;
     });
   }
 
   #teardown() {
     this.tracks.forEach(track => {
+      if (track.node) {
+        track.node.onended = null;
+        try {
+          track.node.stop();
+        } catch {
+          // never started, or already finished
+        }
+        track.node.disconnect();
+        track.node = null;
+      }
       if (track.shifter) {
         try {
           track.shifter.disconnect();
@@ -261,7 +333,12 @@ export default class SongAudio {
 
   seek(seconds) {
     const target = Math.min(Math.max(0, seconds), Math.max(0, this.duration - 0.05));
-    if (this.isPlaying) {
+    if (this.isPlaying && this.isPlain) {
+      // A buffer source cannot be moved, so it is replaced. Nothing is decoded
+      // again, so this is cheap enough to do on every frame of a drag.
+      this.#teardown();
+      this.#start(target);
+    } else if (this.isPlaying) {
       const frame = Math.floor(target * this.context.sampleRate);
       this.tracks.forEach(track => {
         track.shifter._filter.sourcePosition = frame;
@@ -292,12 +369,21 @@ export default class SongAudio {
   }
 
   /**
-   * SoundTouch re-arranges its own processing chain when the effective rate
-   * crosses 1, and samples already in the pipe carry the old setting. Seeking
-   * to where we already are clears them, so a change always takes effect.
+   * Two reasons to rebuild where we stand. Leaving or returning to normal
+   * speed and key swaps the shifter in or out of the graph. And SoundTouch
+   * re-arranges its own chain when the effective rate crosses 1, leaving
+   * samples in the pipe that carry the old setting.
    */
   #flush() {
-    if (this.isPlaying) this.seek(this.currentTime);
+    if (!this.isPlaying) return;
+    const at = this.currentTime;
+    const wantsPlain = this.tempo === 1 && this.semitones === 0;
+    if (wantsPlain !== this.isPlain) {
+      this.#teardown();
+      this.#start(at);
+      return;
+    }
+    this.seek(at);
   }
 
   setLoop(start, end) {
@@ -305,6 +391,14 @@ export default class SongAudio {
     const frames = this.#loopFrames();
     this.tracks.forEach(track => {
       if (track.source) track.source.loop = frames;
+      // A buffer source takes its loop while it plays, so this needs no restart
+      if (track.node) {
+        track.node.loop = !!this.loop;
+        if (this.loop) {
+          track.node.loopStart = this.loop.start;
+          track.node.loopEnd = this.loop.end;
+        }
+      }
     });
     // Drop into the loop if playback is outside it
     if (this.loop) {

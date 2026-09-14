@@ -73,7 +73,13 @@ export default function SongPlayer({
 
   const [engineState, setEngineState] = useState('idle'); // idle | loading | ready | error
   const [duration, setDuration] = useState(0);
+  // The clock is written straight to the page every frame. Putting every tick
+  // in state re-rendered the transport a dozen times a second, and a rebuild
+  // that lands under a thumb is a tap that never happened.
   const [displayTime, setDisplayTime] = useState(0);
+  const elapsedLabelRef = useRef(null);
+  const remainingLabelRef = useRef(null);
+  const showTimeRef = useRef(() => {});
   const [isPlaying, setIsPlaying] = useState(false);
   const [peaks, setPeaks] = useState(null);
   const [loopA, setLoopA] = useState(() => numberOr(saved.loopA, null, { min: 0 }));
@@ -128,6 +134,7 @@ export default function SongPlayer({
     const offSeek = engine.on('seek', (at) => {
       timeRef.current = at;
       setDisplayTime(at);
+      showTimeRef.current(at);
       drawRef.current();
     });
 
@@ -143,28 +150,51 @@ export default function SongPlayer({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sources]);
 
+  /** Write the clock without going through React */
+  const showTime = useCallback((at) => {
+    if (elapsedLabelRef.current) elapsedLabelRef.current.textContent = formatTime(at);
+    if (remainingLabelRef.current) {
+      remainingLabelRef.current.textContent = formatTime(duration ? duration - at : 0, { signed: true });
+    }
+  }, [duration]);
+
+  useEffect(() => { showTimeRef.current = showTime; }, [showTime]);
+
   // Follow the playhead while it moves
   useEffect(() => {
     if (!isPlaying) return undefined;
     let frame;
     let lastShown = -1;
+    let lastDrawn = 0;
+    // Zoomed in, the marks and the loop handles move with the playhead, and
+    // those are drawn by React; zoomed out they sit still and the clock alone
+    // needs to keep up.
+    const rerenderEvery = zoom > 1 ? 0.1 : 0.5;
+
     const tick = () => {
       const engine = engineRef.current;
       if (engine) {
         // The smoothed clock, so the playhead glides rather than hops
         const t = engine.smoothTime;
         timeRef.current = t;
-        if (Math.abs(t - lastShown) >= 0.08) {
+        showTime(t);
+        if (Math.abs(t - lastShown) >= rerenderEvery) {
           lastShown = t;
           setDisplayTime(t);
         }
       }
-      drawRef.current();
+      // Thirty times a second is past the point where a moving line looks
+      // smooth, and it halves the work of redrawing the whole waveform.
+      const now = performance.now();
+      if (now - lastDrawn > 32) {
+        lastDrawn = now;
+        drawRef.current();
+      }
       frame = requestAnimationFrame(tick);
     };
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [isPlaying]);
+  }, [isPlaying, zoom, showTime]);
 
   // ---- Settings that the engine owns -------------------------------------
   // engineState is a dependency so a remembered speed or key is applied again
@@ -512,7 +542,7 @@ export default function SongPlayer({
 
       {/* Transport, with the play control given the most weight */}
       <div className="player-transport" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px 4px' }}>
-        <span style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: colors.dim, minWidth: 56 }}>
+        <span ref={elapsedLabelRef} style={{ fontSize: 13, fontWeight: 600, fontVariantNumeric: 'tabular-nums', color: colors.dim, minWidth: 56 }}>
           {formatTime(displayTime)}
         </span>
         <div style={{ ...groupStyle, gap: 6, margin: '0 auto' }}>
@@ -537,7 +567,7 @@ export default function SongPlayer({
             <Glyph name="nextMark" size={18} />
           </button>
         </div>
-        <span style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: colors.dim, minWidth: 56, textAlign: 'right' }}>
+        <span ref={remainingLabelRef} style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: colors.dim, minWidth: 56, textAlign: 'right' }}>
           {formatTime(duration ? duration - displayTime : 0, { signed: true })}
         </span>
       </div>
