@@ -3,7 +3,7 @@ import SongAudio from '../utils/songAudio';
 import { peaksFromBuffer } from '../utils/peaks';
 import { bookmarkAt, nextBookmark, previousBookmark } from '../utils/bookmarks';
 import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceSettings';
-import { snapLoop, stickySnap, secondsPerBeat, gridUnit } from '../utils/beatGrid';
+import { snapLoop, stickySnap, secondsPerBeat, gridUnit, findOnsets, nearestOnset } from '../utils/beatGrid';
 import { track } from '../utils/usage';
 
 const waveformHeight = () => (window.innerWidth < 768 ? 64 : 96);
@@ -342,6 +342,10 @@ export default function SongPlayer({
     // beat when it is already close to one, so it can still be placed by hand
     const beat = isSnapOn ? secondsPerBeat(bpm) : 0;
     const pull = (time, origin) => {
+      if (!isSnapOn) return time;
+      // A transition under the finger wins; otherwise the beat grid does
+      const onset = nearestOnset(onsets, time, (beat || 0.35) / 4);
+      if (onset !== null) return onset;
       if (!beat || origin === null) return time;
       const unit = gridUnit(Math.abs(time - origin), bpm, meter) || beat;
       return stickySnap(time, origin, unit, beat / 4);
@@ -389,6 +393,14 @@ export default function SongPlayer({
   const squared = (start, end, anchor = 'start') =>
     isSnapOn ? snapLoop(start, end, { bpm, meter, anchor, duration }) : { start, end };
 
+  // Where the music turns over. A tempo cannot say where beat one falls, so
+  // the start of a loop is placed by the sound rather than by the count.
+  const onsets = useMemo(() => findOnsets(peaks, duration), [peaks, duration]);
+  // How far a point may be pulled: a beat when there is a tempo, otherwise
+  // close enough that it still reads as the spot that was asked for
+  const snapWindow = isSnapOn ? (bpm > 0 ? secondsPerBeat(bpm) : 0.35) : 0;
+  const onTransition = (time) => (isSnapOn ? nearestOnset(onsets, time, snapWindow) ?? time : time);
+
   const scaleLoop = (factor) => {
     if (loopA === null || loopB === null) return;
     track('loop.scale', factor < 1 ? 'half' : 'double');
@@ -398,20 +410,16 @@ export default function SongPlayer({
 
   const setA = () => {
     track('loop.setA');
-    const t = timeRef.current;
-    if (loopB !== null && loopB > t) {
-      // Moving A keeps B where it is, so the loop stays a whole number of beats
-      const { start } = squared(t, loopB, 'end');
-      setLoopA(start);
-      return;
-    }
-    setLoopA(t);
-    if (loopB !== null && loopB <= t) setLoopB(null);
+    const start = onTransition(timeRef.current);
+    setLoopA(start);
+    // The loop keeps its whole number of beats, now counted from the new start
+    if (loopB !== null && loopB > start) setLoopB(squared(start, loopB).end);
+    if (loopB !== null && loopB <= start) setLoopB(null);
   };
 
   const setB = () => {
     track('loop.setB');
-    const t = timeRef.current;
+    const t = onTransition(timeRef.current);
     if (loopA === null || t <= loopA) return;
     setLoopB(squared(loopA, t).end);
     setIsLoopOn(true);
