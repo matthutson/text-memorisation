@@ -8,6 +8,7 @@ import SongPlayer from './SongPlayer';
 import { loadBookmarks, saveBookmarks, sortBookmarks } from '../utils/bookmarks';
 import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceSettings';
 import { hasTiming, positionAt, timeAt, toAnchors, withAnchors } from '../utils/scrollTiming';
+import { transposeChordText, prefersFlats, formatSteps } from '../utils/chords';
 
 export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
   // How this song was left last time it was practised
@@ -42,6 +43,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const [fontSize, setFontSize] = useState(() => numberOr(saved.fontSize, window.innerWidth < 768 ? 10 : 12, { min: 8, max: 40 }));
   // Words kept visible at the start of every line
   const [anchorWords, setAnchorWords] = useState(() => numberOr(saved.anchorWords, 2, { min: 0, max: 5 }));
+  // Semitones the chord lines are shifted by
+  const [transpose, setTranspose] = useState(() => numberOr(saved.transpose, 0, { min: -11, max: 11 }));
   const [engine, setEngine] = useState(null); // the audio engine, owned by the transport bar
   const [bookmarks, setBookmarks] = useState(() => loadBookmarks(textData));
   const [isMarkMode, setIsMarkMode] = useState(false);
@@ -244,6 +247,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     return visible;
   };
 
+  // Keep the song's own accidentals: a flat song stays flat when transposed
+  const useFlats = useMemo(() => prefersFlats(text), [text]);
+
   const processedText = useMemo(() => {
     if (!text) return [];
 
@@ -262,15 +268,27 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         const blocks = Array.from(doc.body.querySelectorAll(blockSelector))
           .filter(block => !block.querySelector(blockSelector));
         const lineTexts = [];
+        let hasChords = false;
         blocks.forEach((block, index) => {
           const textContent = block.textContent.trim();
           block.setAttribute('data-line-index', String(index));
           lineTexts[index] = textContent;
           if (!textContent) return;
           if (isChordLine(textContent)) {
+            hasChords = true;
             block.setAttribute('data-chord-line', 'true');
             block.style.color = '#3b82f6';
             block.style.fontWeight = '400';
+            if (transpose) {
+              // One debt tally per line, so chords split over several nodes stay aligned
+              const spacing = { debt: 0 };
+              const chordWalker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT, null, false);
+              while (chordWalker.nextNode()) {
+                const node = chordWalker.currentNode;
+                node.textContent = transposeChordText(node.textContent, transpose, useFlats, spacing);
+              }
+              lineTexts[index] = block.textContent.trim();
+            }
           } else if (isSectionMarker(textContent)) {
             block.setAttribute('data-always-visible', 'true');
           }
@@ -418,7 +436,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
         }
         doc.body.replaceChildren(...wrapped);
 
-        return { isHtml: true, content: doc.body.innerHTML, lineTexts, groupSizes };
+        return { isHtml: true, content: doc.body.innerHTML, lineTexts, groupSizes, hasChords };
       } catch (e) {
         console.error('Error parsing HTML:', e);
         // Fallback to plain text processing if parsing fails
@@ -466,9 +484,10 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
 
       if (meta.type === 'chord') {
         // Keep chord lines fully visible with special styling
+        const chords = transposeChordText(line, transpose, useFlats);
         result.push(
           <div key={lineIdx} data-line-index={lineIdx} style={{ color: '#3b82f6', fontWeight: '400', lineHeight: '1.1', marginBottom: 0, paddingBottom: 0 }}>
-            {line || ' '}
+            {chords || ' '}
           </div>
         );
       } else if (meta.type === 'section') {
@@ -515,8 +534,14 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       cursor += size;
     }
 
-    return { isHtml: false, content: grouped, lineTexts, groupSizes };
-  }, [text, visibility, anchorWords]);
+    return {
+      isHtml: false,
+      content: grouped,
+      lineTexts,
+      groupSizes,
+      hasChords: lineMeta.some(meta => meta.type === 'chord')
+    };
+  }, [text, visibility, anchorWords, transpose, useFlats]);
 
   // ---- Bookmarks: a moment in the audio tied to a line of the lyrics ------
 
@@ -742,6 +767,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
     saveSettings(songId, {
       visibility,
       anchorWords,
+      transpose,
       isFollowing,
       autoScroll: autoScrollChoice,
       screenKind,
@@ -752,7 +778,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       metronomeBPM,
       metronomeMeter
     });
-  }, [songId, visibility, anchorWords, isFollowing, autoScrollChoice, screenKind, autoFit,
+  }, [songId, visibility, anchorWords, transpose, isFollowing, autoScrollChoice, screenKind, autoFit,
       fontSize, columnWidth, autoScrollSpeed, metronomeBPM, metronomeMeter]);
 
   const handleStartPractising = () => {
@@ -1607,6 +1633,40 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
                     </IconButton>
                   </Flex>
+
+                  {processedText.hasChords && (
+                    <>
+                      <Separator orientation="vertical" size="1" />
+
+                      {/* Transpose — shifts the chord lines, the lyrics are left alone */}
+                      <Flex align="center" gap="2" shrink="0">
+                        <Tooltip content="Shift the chords by semitones">
+                          <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Key</Text>
+                        </Tooltip>
+                        <IconButton variant="outline" size="3" onClick={() => setTranspose(Math.max(-11, transpose - 1))}>
+                          <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
+                        </IconButton>
+                        <Tooltip content={transpose ? 'Back to the written key' : 'The written key'}>
+                          <Text
+                            size="2"
+                            onClick={() => setTranspose(0)}
+                            style={{
+                              width: 28,
+                              textAlign: 'center',
+                              fontVariantNumeric: 'tabular-nums',
+                              cursor: transpose ? 'pointer' : 'default',
+                              color: transpose ? '#3b82f6' : undefined
+                            }}
+                          >
+                            {formatSteps(transpose)}
+                          </Text>
+                        </Tooltip>
+                        <IconButton variant="outline" size="3" onClick={() => setTranspose(Math.min(11, transpose + 1))}>
+                          <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
+                        </IconButton>
+                      </Flex>
+                    </>
+                  )}
 
                   <Separator orientation="vertical" size="1" />
 
