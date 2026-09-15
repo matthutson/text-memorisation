@@ -3,6 +3,7 @@ import SongAudio from '../utils/songAudio';
 import { peaksFromBuffer } from '../utils/peaks';
 import { bookmarkAt, nextBookmark, previousBookmark } from '../utils/bookmarks';
 import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceSettings';
+import { snapLoop, stickySnap, secondsPerBeat, gridUnit } from '../utils/beatGrid';
 
 const waveformHeight = () => (window.innerWidth < 768 ? 64 : 96);
 
@@ -66,7 +67,9 @@ export default function SongPlayer({
   onAddBookmark,
   isStemsPanelOpen,
   onToggleStemsPanel,
-  onEngineReady
+  onEngineReady,
+  bpm = 0,
+  meter = 4
 }) {
   // How this song was left last time: its speed, key, loop and zoom
   const saved = useMemo(() => loadSettings(songId), [songId]);
@@ -85,6 +88,8 @@ export default function SongPlayer({
   const [loopA, setLoopA] = useState(() => numberOr(saved.loopA, null, { min: 0 }));
   const [loopB, setLoopB] = useState(() => numberOr(saved.loopB, null, { min: 0 }));
   const [isLoopOn, setIsLoopOn] = useState(() => boolOr(saved.isLoopOn, false));
+  // Keep the loop a whole number of beats long, so the pulse carries over the wrap
+  const [isSnapOn, setIsSnapOn] = useState(() => boolOr(saved.isSnapOn, false));
   const [speed, setSpeed] = useState(() => numberOr(saved.speed, 1, { min: 0.25, max: 2 }));
   const [pitch, setPitch] = useState(() => numberOr(saved.pitch, 0, { min: -12, max: 12 }));
   const [zoom, setZoom] = useState(() => numberOr(saved.zoom, 1, { min: 1, max: 32 }));
@@ -210,8 +215,8 @@ export default function SongPlayer({
 
   // Keep the song's settings for next time
   useEffect(() => {
-    saveSettings(songId, { speed, pitch, zoom, loopA, loopB, isLoopOn });
-  }, [songId, speed, pitch, zoom, loopA, loopB, isLoopOn]);
+    saveSettings(songId, { speed, pitch, zoom, loopA, loopB, isLoopOn, isSnapOn });
+  }, [songId, speed, pitch, zoom, loopA, loopB, isLoopOn, isSnapOn]);
 
   // ---- Which lyric line is playing ---------------------------------------
   useEffect(() => {
@@ -332,8 +337,16 @@ export default function SongPlayer({
     if (!dragging) return;
     const t = timeFromEvent(event);
     if (dragging === 'playhead') seek(t);
-    if (dragging === 'A') setLoopA(Math.min(t, (loopB ?? duration) - 0.1));
-    if (dragging === 'B') setLoopB(Math.max(t, (loopA ?? 0) + 0.1));
+    // While dragging the grid is sticky, not strict: a point only lands on a
+    // beat when it is already close to one, so it can still be placed by hand
+    const beat = isSnapOn ? secondsPerBeat(bpm) : 0;
+    const pull = (time, origin) => {
+      if (!beat || origin === null) return time;
+      const unit = gridUnit(Math.abs(time - origin), bpm, meter) || beat;
+      return stickySnap(time, origin, unit, beat / 4);
+    };
+    if (dragging === 'A') setLoopA(Math.min(pull(t, loopB), (loopB ?? duration) - 0.1));
+    if (dragging === 'B') setLoopB(Math.max(pull(t, loopA), (loopA ?? 0) + 0.1));
   };
 
   const togglePlay = () => {
@@ -352,6 +365,12 @@ export default function SongPlayer({
 
   const activeBookmark = bookmarkAt(bookmarks, displayTime);
 
+  // With the grid on, the loop moves by whole beats so it stays in phase
+  const step = isSnapOn && bpm > 0 ? secondsPerBeat(bpm) : 0.5;
+  const stepLabel = (direction) => isSnapOn && bpm > 0
+    ? `Nudge the loop one beat ${direction}`
+    : `Nudge the loop half a second ${direction}`;
+
   const nudge = (delta) => {
     if (loopA === null || loopB === null) {
       seek(timeRef.current + delta);
@@ -363,13 +382,24 @@ export default function SongPlayer({
     setLoopB(start + width);
   };
 
+  // A loop squared off to whole beats, when the grid is on and a tempo is known
+  const squared = (start, end, anchor = 'start') =>
+    isSnapOn ? snapLoop(start, end, { bpm, meter, anchor, duration }) : { start, end };
+
   const scaleLoop = (factor) => {
     if (loopA === null || loopB === null) return;
-    setLoopB(Math.min(duration, loopA + Math.max(0.2, (loopB - loopA) * factor)));
+    const wanted = Math.min(duration, loopA + Math.max(0.2, (loopB - loopA) * factor));
+    setLoopB(squared(loopA, wanted).end);
   };
 
   const setA = () => {
     const t = timeRef.current;
+    if (loopB !== null && loopB > t) {
+      // Moving A keeps B where it is, so the loop stays a whole number of beats
+      const { start } = squared(t, loopB, 'end');
+      setLoopA(start);
+      return;
+    }
     setLoopA(t);
     if (loopB !== null && loopB <= t) setLoopB(null);
   };
@@ -377,7 +407,7 @@ export default function SongPlayer({
   const setB = () => {
     const t = timeRef.current;
     if (loopA === null || t <= loopA) return;
-    setLoopB(t);
+    setLoopB(squared(loopA, t).end);
     setIsLoopOn(true);
   };
 
@@ -390,8 +420,9 @@ export default function SongPlayer({
   const loopCurrentSection = () => {
     if (!activeBookmark) return;
     const following = nextBookmark(bookmarks, activeBookmark.time);
-    setLoopA(activeBookmark.time);
-    setLoopB(following ? following.time : duration);
+    const { start, end } = squared(activeBookmark.time, following ? following.time : duration);
+    setLoopA(start);
+    setLoopB(end);
     setIsLoopOn(true);
     goToBookmark(activeBookmark);
   };
@@ -454,7 +485,7 @@ export default function SongPlayer({
         padding: '10px 12px'
       }}>
         <button style={button(isStemsPanelOpen)} onClick={onToggleStemsPanel} title="Add or split a backing track">
-          <Glyph name="sliders" /> Tracks
+          <Glyph name="sliders" /> Tracks & Stems
         </button>
         <span style={{ fontSize: 12, color: colors.dim }}>
           No backing track yet. Add one for the waveform, looping and bookmarks.
@@ -584,9 +615,25 @@ export default function SongPlayer({
             title="Repeat the A to B section"
           ><Glyph name="loop" /></button>
           <button style={button()} onClick={clearLoop} title="Clear the loop points"><Glyph name="cross" /></button>
+          <button
+            style={button(isSnapOn)}
+            onClick={() => {
+              const next = !isSnapOn;
+              setIsSnapOn(next);
+              // Square off the loop that is already set, so the change is audible at once
+              if (next && loopA !== null && loopB !== null && bpm > 0) {
+                const { end } = snapLoop(loopA, loopB, { bpm, meter, duration });
+                setLoopB(end);
+              }
+            }}
+            title={bpm > 0
+              ? `Keep the loop a whole number of beats long at ${bpm} BPM, so the pulse carries over the wrap`
+              : 'Set the metronome tempo to snap the loop to the beat'}
+            disabled={!(bpm > 0)}
+          >{isSnapOn ? 'Beat' : 'Free'}</button>
           <span className="player-advanced" style={groupStyle}>
-            <button style={button()} onClick={() => nudge(-0.5)} title="Nudge the loop half a second earlier"><Glyph name="arrowLeft" /></button>
-            <button style={button()} onClick={() => nudge(0.5)} title="Nudge the loop half a second later"><Glyph name="arrowRight" /></button>
+            <button style={button()} onClick={() => nudge(-step)} title={stepLabel('earlier')}><Glyph name="arrowLeft" /></button>
+            <button style={button()} onClick={() => nudge(step)} title={stepLabel('later')}><Glyph name="arrowRight" /></button>
             <button style={button()} onClick={() => scaleLoop(0.5)} title="Halve the loop">½</button>
             <button style={button()} onClick={() => scaleLoop(2)} title="Double the loop">×2</button>
           </span>
@@ -645,7 +692,7 @@ export default function SongPlayer({
           ><Glyph name="trash" /></button>
         </Section>
 
-        <Section caption="Tracks">
+        <Section caption="Tracks & Stems">
           <button style={button(isStemsPanelOpen)} onClick={onToggleStemsPanel} title="Add, split and mix the backing tracks">
             <Glyph name="sliders" />
           </button>
