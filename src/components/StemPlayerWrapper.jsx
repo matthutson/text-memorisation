@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { track } from '../utils/usage';
 import { Badge, Box, Button, Flex, IconButton, Progress, Slider, Text, TextField } from '@radix-ui/themes';
 import { supabase } from '../utils/supabase';
 import { getJobForText, queueBackingTrack, updateText } from '../utils/storage';
@@ -331,7 +332,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
                 <Text size="1" weight="bold" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
                     Mix
                 </Text>
-                <Button size="1" variant={areToolsOpen ? 'solid' : 'soft'} onClick={() => setAreToolsOpen(!areToolsOpen)}>
+                <Button size="1" variant={areToolsOpen ? 'solid' : 'soft'} onClick={() => { setAreToolsOpen(!areToolsOpen); track('stems.tools', areToolsOpen ? 'close' : 'open'); }}>
                     {areToolsOpen ? 'Done' : 'Add or split'}
                 </Button>
             </Flex>
@@ -353,7 +354,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
                                     size="1"
                                     variant={level.muted ? 'solid' : 'soft'}
                                     color={level.muted ? 'red' : 'gray'}
-                                    onClick={() => setLevel(index, stem, { ...level, muted: !level.muted })}
+                                    onClick={() => { setLevel(index, stem, { ...level, muted: !level.muted }); track('stems.mute', level.muted ? 'unmute' : 'mute'); }}
                                     title={level.muted ? 'Unmute' : 'Mute'}
                                 >
                                     {level.muted ? 'M' : '♪'}
@@ -376,7 +377,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
                                             size="1"
                                             variant={pan === position.value ? 'solid' : 'soft'}
                                             color={pan === position.value ? 'blue' : 'gray'}
-                                            onClick={() => setLevel(index, stem, { ...level, pan: position.value })}
+                                            onClick={() => { setLevel(index, stem, { ...level, pan: position.value }); track('stems.pan', position.label); }}
                                             title={position.title}
                                         >
                                             <Text size="1">{position.label}</Text>

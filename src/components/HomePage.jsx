@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { track } from '../utils/usage';
 import {
   Badge,
   Box,
@@ -204,6 +205,7 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
   // ---- Songs ----
 
   const openNewSong = () => {
+    track('song.new');
     setEditingSong(null);
     setDraft({
       ...emptyDraft,
@@ -485,7 +487,7 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
           </Box>
 
           <Tooltip content={isDarkMode ? 'Light mode' : 'Dark mode'}>
-            <IconButton variant="soft" color="gray" onClick={onToggleDarkMode} aria-label="Toggle theme">
+            <IconButton variant="soft" color="gray" onClick={() => { onToggleDarkMode(); track('theme.toggle'); }} aria-label="Toggle theme">
               <Icon name={isDarkMode ? 'sun' : 'moon'} />
             </IconButton>
           </Tooltip>
@@ -652,7 +654,7 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
                       </Flex>
                     )}
 
-                    <Button onClick={() => onPracticeText(song)}>Practice</Button>
+                    <Button onClick={() => { track('song.practice'); onPracticeText(song); }}>Practice</Button>
                   </Flex>
                 </Card>
               ))}

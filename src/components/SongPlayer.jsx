@@ -4,6 +4,7 @@ import { peaksFromBuffer } from '../utils/peaks';
 import { bookmarkAt, nextBookmark, previousBookmark } from '../utils/bookmarks';
 import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceSettings';
 import { snapLoop, stickySnap, secondsPerBeat, gridUnit } from '../utils/beatGrid';
+import { track } from '../utils/usage';
 
 const waveformHeight = () => (window.innerWidth < 768 ? 64 : 96);
 
@@ -352,6 +353,7 @@ export default function SongPlayer({
   const togglePlay = () => {
     const engine = engineRef.current;
     if (!engine) return;
+    track('transport.play', isPlaying ? 'pause' : 'play');
     if (isPlaying) engine.pause();
     else engine.play();
   };
@@ -372,6 +374,7 @@ export default function SongPlayer({
     : `Nudge the loop half a second ${direction}`;
 
   const nudge = (delta) => {
+    track('loop.nudge', delta < 0 ? 'earlier' : 'later');
     if (loopA === null || loopB === null) {
       seek(timeRef.current + delta);
       return;
@@ -388,11 +391,13 @@ export default function SongPlayer({
 
   const scaleLoop = (factor) => {
     if (loopA === null || loopB === null) return;
+    track('loop.scale', factor < 1 ? 'half' : 'double');
     const wanted = Math.min(duration, loopA + Math.max(0.2, (loopB - loopA) * factor));
     setLoopB(squared(loopA, wanted).end);
   };
 
   const setA = () => {
+    track('loop.setA');
     const t = timeRef.current;
     if (loopB !== null && loopB > t) {
       // Moving A keeps B where it is, so the loop stays a whole number of beats
@@ -405,6 +410,7 @@ export default function SongPlayer({
   };
 
   const setB = () => {
+    track('loop.setB');
     const t = timeRef.current;
     if (loopA === null || t <= loopA) return;
     setLoopB(squared(loopA, t).end);
@@ -412,6 +418,7 @@ export default function SongPlayer({
   };
 
   const clearLoop = () => {
+    track('loop.clear');
     setLoopA(null);
     setLoopB(null);
     setIsLoopOn(false);
@@ -419,6 +426,7 @@ export default function SongPlayer({
 
   const loopCurrentSection = () => {
     if (!activeBookmark) return;
+    track('loop.section');
     const following = nextBookmark(bookmarks, activeBookmark.time);
     const { start, end } = squared(activeBookmark.time, following ? following.time : duration);
     setLoopA(start);
@@ -610,7 +618,7 @@ export default function SongPlayer({
           <button style={button(loopB !== null)} onClick={setB} title="Set the loop end at the playhead">B</button>
           <button
             style={button(isLoopOn)}
-            onClick={() => setIsLoopOn(!isLoopOn)}
+            onClick={() => { setIsLoopOn(!isLoopOn); track('loop.toggle', isLoopOn ? 'off' : 'on'); }}
             disabled={loopA === null || loopB === null}
             title="Repeat the A to B section"
           ><Glyph name="loop" /></button>
@@ -620,6 +628,7 @@ export default function SongPlayer({
             onClick={() => {
               const next = !isSnapOn;
               setIsSnapOn(next);
+              track('loop.beatGrid', next ? 'on' : 'off');
               // Square off the loop that is already set, so the change is audible at once
               if (next && loopA !== null && loopB !== null && bpm > 0) {
                 const { end } = snapLoop(loopA, loopB, { bpm, meter, duration });
@@ -640,37 +649,37 @@ export default function SongPlayer({
         </Section>
 
         <Section caption="Speed">
-          <button style={button()} onClick={() => setSpeed(Math.max(0.25, Math.round((speed - 0.05) * 100) / 100))} title="Slower, same key">
+          <button style={button()} onClick={() => { setSpeed(Math.max(0.25, Math.round((speed - 0.05) * 100) / 100)); track('speed', 'slower'); }} title="Slower, same key">
             <Glyph name="minus" />
           </button>
           {readout(`${speed.toFixed(2)}x`, speed !== 1, () => setSpeed(1), 'Back to normal speed')}
-          <button style={button()} onClick={() => setSpeed(Math.min(2, Math.round((speed + 0.05) * 100) / 100))} title="Faster, same key">
+          <button style={button()} onClick={() => { setSpeed(Math.min(2, Math.round((speed + 0.05) * 100) / 100)); track('speed', 'faster'); }} title="Faster, same key">
             <Glyph name="plus" />
           </button>
         </Section>
 
         <Section caption="Pitch">
-          <button style={button()} onClick={() => setPitch(Math.max(-12, pitch - 1))} title="Down a semitone, same speed">
+          <button style={button()} onClick={() => { setPitch(Math.max(-12, pitch - 1)); track('pitch', 'down'); }} title="Down a semitone, same speed">
             <Glyph name="flat" />
           </button>
           {readout(`${pitch > 0 ? '+' : ''}${pitch}`, pitch !== 0, () => setPitch(0), 'Back to the original key')}
-          <button style={button()} onClick={() => setPitch(Math.min(12, pitch + 1))} title="Up a semitone, same speed">
+          <button style={button()} onClick={() => { setPitch(Math.min(12, pitch + 1)); track('pitch', 'up'); }} title="Up a semitone, same speed">
             <Glyph name="sharp" />
           </button>
         </Section>
 
         <Section caption="Zoom">
-          <button style={button()} onClick={() => setZoom(current => Math.max(1, current / 2))} disabled={zoom <= 1} title="Show more of the track">
+          <button style={button()} onClick={() => { setZoom(current => Math.max(1, current / 2)); track('zoom', 'out'); }} disabled={zoom <= 1} title="Show more of the track">
             <Glyph name="zoomOut" />
           </button>
           {readout(`${zoom}x`, zoom > 1, () => setZoom(1), 'Show the whole track')}
-          <button style={button()} onClick={() => setZoom(current => Math.min(32, current * 2))} disabled={zoom >= 32} title="Zoom into the playhead">
+          <button style={button()} onClick={() => { setZoom(current => Math.min(32, current * 2)); track('zoom', 'in'); }} disabled={zoom >= 32} title="Zoom into the playhead">
             <Glyph name="zoomIn" />
           </button>
         </Section>
 
         <Section caption="Marks">
-          <button style={button()} onClick={() => onAddBookmark?.(timeRef.current)} title="Drop a bookmark at the playhead">
+          <button style={button()} onClick={() => { onAddBookmark?.(timeRef.current); track('marks.add'); }} title="Drop a bookmark at the playhead">
             <Glyph name="addMark" />
           </button>
           <button style={button(isMarkMode)} onClick={onToggleMarkMode} title="Tap a lyric line to pin it to this moment">
