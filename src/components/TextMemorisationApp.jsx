@@ -759,7 +759,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
       cancelAnimationFrame(frame);
       window.removeEventListener('resize', onResize);
     };
-  }, [autoFit, isEditing, currentTab, text, fitToWindow]);
+  }, [autoFit, isEditing, currentTab, text, fitToWindow, isStemPlayerVisible]);
 
   // Keep the way this song is set up for next time. The sizes only matter when
   // the fitter is off, but they cost nothing to carry.
@@ -1840,8 +1840,17 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
             {/* Main Content Area */}
             <div className="flex-1 flex overflow-hidden">
               <div className="flex-1 flex flex-col overflow-hidden">
+                <style>{`
+                  /* The words and the mixer share a row on a desktop, so the
+                     mixer sits beside the song rather than on top of the
+                     transport. A narrow screen has no width to give away, so
+                     there they stack as before. */
+                  .practice-body { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; overflow: hidden; }
+                  @media (min-width: 768px) { .practice-body { flex-direction: row; } }
+                `}</style>
+                <div className="practice-body">
                 {/* Text Display */}
-                <div className={`flex-1 overflow-hidden relative transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
+                <div className={`flex-1 min-w-0 overflow-hidden relative transition-colors ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'
                   }`}>
                   {/* YouTube toggle button - moved to bottom bar */}
 
@@ -2112,6 +2121,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   onStemsUpdate={onTextDataUpdate}
                   engine={engine}
                 />
+                </div>
 
                 {/* Backing track transport: waveform, A-B loop and lyric bookmarks */}
                 <SongPlayer
@@ -2131,6 +2141,8 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   isStemsPanelOpen={isStemPlayerVisible}
                   onToggleStemsPanel={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
                   onEngineReady={handleEngineReady}
+                  bpm={metronomeBPM}
+                  meter={metronomeMeter}
                 />
 
                 {/* YouTube Video Container - Bottom of screen */}

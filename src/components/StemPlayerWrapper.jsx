@@ -288,15 +288,26 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
 
     return (
         <Box
+            className="stems-panel"
             style={{
                 display: isVisible ? 'block' : 'none',
-                flexShrink: 0,
-                borderTop: '1px solid var(--gray-a5)',
-                background: 'var(--color-panel-solid)',
-                maxHeight: '38vh',
-                overflowY: 'auto'
+                background: 'var(--color-panel-solid)'
             }}
         >
+            <style>{`
+                /* Under the words on a phone, beside them on a desktop. The
+                   panel keeps its own scroll either way, so a long stem list
+                   never pushes the transport off the screen. */
+                .stems-panel { flex-shrink: 0; overflow-y: auto; max-height: 38vh; border-top: 1px solid var(--gray-a5); }
+                @media (min-width: 768px) {
+                    .stems-panel { width: 320px; max-height: none; height: 100%; border-top: none; border-left: 1px solid var(--gray-a5); }
+                    /* A column this narrow cannot hold the whole strip on one
+                       line, so the fader drops under the name it belongs to */
+                    .stems-panel .stem-row { flex-wrap: wrap; }
+                    .stems-panel .stem-name { width: auto !important; flex: 1 1 auto; min-width: 0; }
+                    .stems-panel .stem-fader { flex-basis: 100%; max-width: none; margin-bottom: 2px; }
+                }
+            `}</style>
             {job && job.status !== 'done' && (
                 <Box px="4" pt="3">
                     <Flex align="center" gap="2">
@@ -337,7 +348,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
                         const level = levelFor(stem);
                         const pan = level.pan ?? 0;
                         return (
-                            <Flex key={stem.src} align="center" gap="2">
+                            <Flex key={stem.src} className="stem-row" align="center" gap="2">
                                 <IconButton
                                     size="1"
                                     variant={level.muted ? 'solid' : 'soft'}
@@ -349,6 +360,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
                                 </IconButton>
                                 <Text
                                     size="1"
+                                    className="stem-name"
                                     title={stem.label}
                                     style={{
                                         width: 116, flexShrink: 0, color: roleFor(stem).color, fontWeight: 600,
@@ -371,7 +383,7 @@ const StemPlayerWrapper = ({ stems = [], setStems, textId, youtubeUrl = '', onSt
                                         </IconButton>
                                     ))}
                                 </Flex>
-                                <Box style={{ flex: 1, minWidth: 80, maxWidth: 260 }}>
+                                <Box className="stem-fader" style={{ flex: 1, minWidth: 80, maxWidth: 260 }}>
                                     <Slider
                                         size="1"
                                         value={[Math.round(level.volume * 100)]}
