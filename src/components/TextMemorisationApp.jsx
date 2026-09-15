@@ -9,6 +9,7 @@ import { loadBookmarks, saveBookmarks, sortBookmarks } from '../utils/bookmarks'
 import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceSettings';
 import { hasTiming, positionAt, timeAt, toAnchors, withAnchors } from '../utils/scrollTiming';
 import { transposeChordText, prefersFlats, formatSteps } from '../utils/chords';
+import { track } from '../utils/usage';
 
 export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
   // How this song was left last time it was practised
@@ -1511,7 +1512,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     variant={currentTab === 'text' ? 'solid' : 'soft'}
                     color="gray"
                     size="2"
-                    onClick={() => setCurrentTab('text')}
+                    onClick={() => { setCurrentTab('text'); track('tab.text'); }}
                     style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '12px' }}
                   >
                     Text
@@ -1520,7 +1521,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                     variant={currentTab === 'music' ? 'solid' : 'soft'}
                     color="gray"
                     size="2"
-                    onClick={() => setCurrentTab('music')}
+                    onClick={() => { setCurrentTab('music'); track('tab.music'); }}
                     style={{ textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '12px' }}
                   >
                     Music
@@ -1572,7 +1573,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                 {/* Settings toggle + Dark mode — full row height with gap */}
                 {currentTab === 'text' && (
                   <button
-                    onClick={() => setIsControlsExpanded(!isControlsExpanded)}
+                    onClick={() => { setIsControlsExpanded(!isControlsExpanded); track('text.controls', isControlsExpanded ? 'collapse' : 'expand'); }}
                     className={`md:!hidden flex items-center justify-center px-2 -my-2 transition-colors ${isDarkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-100'}`}
                     title="Settings"
                   >
@@ -1614,7 +1615,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       variant={autoFit ? 'solid' : 'outline'}
                       color={autoFit ? 'blue' : 'gray'}
                       size="2"
-                      onClick={() => { setAutoFit(true); fitToWindow(); }}
+                      onClick={() => { setAutoFit(true); fitToWindow(); track('text.fit'); }}
                     >
                       Fit
                     </Button>
@@ -1625,31 +1626,76 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   {/* Font Size */}
                   <Flex align="center" gap="2" shrink="0">
                     <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Font</Text>
-                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setFontSize(Math.max(8, fontSize - 2)); }}>
+                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setFontSize(Math.max(8, fontSize - 2)); track('text.font', 'smaller'); }}>
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
                     </IconButton>
                     <Text size="2" style={{ width: 24, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{fontSize}</Text>
-                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setFontSize(Math.min(40, fontSize + 2)); }}>
+                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setFontSize(Math.min(40, fontSize + 2)); track('text.font', 'larger'); }}>
                       <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
                     </IconButton>
                   </Flex>
 
+                  <Separator orientation="vertical" size="1" />
+
+                  {/* Column Width */}
+                  <Flex align="center" gap="2" shrink="0">
+                    <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Width</Text>
+                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setColumnWidth(Math.max(80, columnWidth - 20)); track('text.width', 'narrower'); }}>
+                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
+                    </IconButton>
+                    <Text size="2" style={{ width: 32, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{columnWidth}</Text>
+                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setColumnWidth(Math.min(900, columnWidth + 20)); track('text.width', 'wider'); }}>
+                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
+                    </IconButton>
+                  </Flex>
+
+                  <Separator orientation="vertical" size="1" />
+
+                  {/* Column Navigation — the same shape as the sizes it sits with */}
+                  <Flex align="center" gap="2" shrink="0">
+                    <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Col</Text>
+                    <IconButton variant="outline" size="3" title="The column before this one" onClick={() => {
+                      if (!scrollContainerRef.current) return;
+                      const container = scrollContainerRef.current;
+                      const columnWithGap = columnWidth + 48;
+                      container.scrollLeft = Math.max(0, container.scrollLeft - columnWithGap);
+                      track('text.column', 'back');
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M15 18l-6-6 6-6" />
+                      </svg>
+                    </IconButton>
+                    <IconButton variant="outline" size="3" title="The next column" onClick={() => {
+                      if (!scrollContainerRef.current) return;
+                      const container = scrollContainerRef.current;
+                      const columnWithGap = columnWidth + 48;
+                      const maxScroll = container.scrollWidth - container.clientWidth;
+                      container.scrollLeft = Math.min(maxScroll, container.scrollLeft + columnWithGap);
+                      track('text.column', 'forward');
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                        <path d="M9 18l6-6-6-6" />
+                      </svg>
+                    </IconButton>
+                  </Flex>
+
+                  {/* Transpose sits apart from the sizes: it changes the music,
+                      not the page. Only a song with chords has a key to shift. */}
                   {processedText.hasChords && (
                     <>
                       <Separator orientation="vertical" size="1" />
 
-                      {/* Transpose — shifts the chord lines, the lyrics are left alone */}
                       <Flex align="center" gap="2" shrink="0">
                         <Tooltip content="Shift the chords by semitones">
                           <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Key</Text>
                         </Tooltip>
-                        <IconButton variant="outline" size="3" onClick={() => setTranspose(Math.max(-11, transpose - 1))}>
+                        <IconButton variant="outline" size="3" onClick={() => { setTranspose(Math.max(-11, transpose - 1)); track('text.transpose', 'down'); }}>
                           <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
                         </IconButton>
                         <Tooltip content={transpose ? 'Back to the written key' : 'The written key'}>
                           <Text
                             size="2"
-                            onClick={() => setTranspose(0)}
+                            onClick={() => { if (transpose) { setTranspose(0); track('text.transpose', 'reset'); } }}
                             style={{
                               width: 28,
                               textAlign: 'center',
@@ -1661,54 +1707,12 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                             {formatSteps(transpose)}
                           </Text>
                         </Tooltip>
-                        <IconButton variant="outline" size="3" onClick={() => setTranspose(Math.min(11, transpose + 1))}>
+                        <IconButton variant="outline" size="3" onClick={() => { setTranspose(Math.min(11, transpose + 1)); track('text.transpose', 'up'); }}>
                           <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
                         </IconButton>
                       </Flex>
                     </>
                   )}
-
-                  <Separator orientation="vertical" size="1" />
-
-                  {/* Column Width */}
-                  <Flex align="center" gap="2" shrink="0">
-                    <Text size="1" weight="medium" color="gray" style={{ textTransform: 'uppercase', letterSpacing: '0.05em' }}>Width</Text>
-                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setColumnWidth(Math.max(80, columnWidth - 20)); }}>
-                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>−</span>
-                    </IconButton>
-                    <Text size="2" style={{ width: 32, textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{columnWidth}</Text>
-                    <IconButton variant="outline" size="3" onClick={() => { setAutoFit(false); setColumnWidth(Math.min(900, columnWidth + 20)); }}>
-                      <span style={{ fontSize: 16, fontWeight: 'bold', lineHeight: 1 }}>+</span>
-                    </IconButton>
-                  </Flex>
-
-                  <Separator orientation="vertical" size="1" />
-
-                  {/* Column Navigation */}
-                  <Flex align="center" gap="1" shrink="0">
-                    <IconButton variant="ghost" size="3" onClick={() => {
-                      if (!scrollContainerRef.current) return;
-                      const container = scrollContainerRef.current;
-                      const columnWithGap = columnWidth + 48;
-                      container.scrollLeft = Math.max(0, container.scrollLeft - columnWithGap);
-                    }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M15 18l-6-6 6-6" />
-                      </svg>
-                    </IconButton>
-                    <Text size="1" color="gray">Col</Text>
-                    <IconButton variant="ghost" size="3" onClick={() => {
-                      if (!scrollContainerRef.current) return;
-                      const container = scrollContainerRef.current;
-                      const columnWithGap = columnWidth + 48;
-                      const maxScroll = container.scrollWidth - container.clientWidth;
-                      container.scrollLeft = Math.min(maxScroll, container.scrollLeft + columnWithGap);
-                    }}>
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                        <path d="M9 18l6-6-6-6" />
-                      </svg>
-                    </IconButton>
-                  </Flex>
 
                   <Separator orientation="vertical" size="1" />
 
@@ -1718,7 +1722,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       variant={isAutoAdvancing ? 'solid' : 'outline'}
                       color={isAutoAdvancing ? 'blue' : 'gray'}
                       size="2"
-                      onClick={() => setAutoScrollChoice(!isAutoAdvancing)}
+                      onClick={() => { setAutoScrollChoice(!isAutoAdvancing); track('text.autoScroll', isAutoAdvancing ? 'stop' : 'start'); }}
                     >
                       {isAutoAdvancing ? 'Stop' : 'Auto'}
                     </Button>
@@ -1787,7 +1791,7 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                       variant={isMetronomeActive ? 'solid' : 'outline'}
                       color={isMetronomeActive ? 'green' : 'gray'}
                       size="2"
-                      onClick={() => setIsMetronomeActive(prev => !prev)}
+                      onClick={() => { setIsMetronomeActive(prev => !prev); track('metronome', isMetronomeActive ? 'off' : 'on'); }}
                     >
                       {isMetronomeActive ? 'Metro On' : 'Metro Off'}
                     </Button>
@@ -2130,16 +2134,16 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
                   bookmarks={bookmarks}
                   isDarkMode={isDarkMode}
                   isMarkMode={isMarkMode}
-                  onToggleMarkMode={() => setIsMarkMode(!isMarkMode)}
+                  onToggleMarkMode={() => { setIsMarkMode(!isMarkMode); track('marks.markMode', isMarkMode ? 'off' : 'on'); }}
                   isFollowing={isFollowing}
-                  onToggleFollowing={() => setIsFollowing(!isFollowing)}
+                  onToggleFollowing={() => { setIsFollowing(!isFollowing); track('marks.follow', isFollowing ? 'off' : 'on'); }}
                   onActiveLineChange={setActiveLine}
                   onDeleteBookmark={deleteBookmark}
                   onClearBookmarks={clearBookmarks}
                   onAddBookmark={addBookmarkAt}
                   onJumpToLine={jumpToLine}
                   isStemsPanelOpen={isStemPlayerVisible}
-                  onToggleStemsPanel={() => setIsStemPlayerVisible(!isStemPlayerVisible)}
+                  onToggleStemsPanel={() => { setIsStemPlayerVisible(!isStemPlayerVisible); track('stems.panel', isStemPlayerVisible ? 'close' : 'open'); }}
                   onEngineReady={handleEngineReady}
                   bpm={metronomeBPM}
                   meter={metronomeMeter}
