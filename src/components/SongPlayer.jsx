@@ -70,7 +70,10 @@ export default function SongPlayer({
   onToggleStemsPanel,
   onEngineReady,
   bpm = 0,
-  meter = 4
+  meter = 4,
+  // The player-first view has no lyrics on screen, so the marks that tie a
+  // moment to a line have nothing to tie themselves to
+  showMarks = true
 }) {
   // How this song was left last time: its speed, key, loop and zoom
   const saved = useMemo(() => loadSettings(songId), [songId]);
@@ -686,6 +689,7 @@ export default function SongPlayer({
           </button>
         </Section>
 
+        {showMarks && (
         <Section caption="Marks">
           <button style={button()} onClick={() => { onAddBookmark?.(timeRef.current); track('marks.add'); }} title="Drop a bookmark at the playhead">
             <Glyph name="addMark" />
@@ -708,6 +712,7 @@ export default function SongPlayer({
             title="Delete every bookmark on this song"
           ><Glyph name="trash" /></button>
         </Section>
+        )}
 
         <Section caption="Tracks & Stems">
           <button style={button(isStemsPanelOpen)} onClick={onToggleStemsPanel} title="Add, split and mix the backing tracks">
