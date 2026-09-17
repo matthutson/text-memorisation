@@ -36,7 +36,8 @@ import QuillEditor from './QuillEditor';
 import TallyMarks from './TallyMarks';
 import JukeboxView from './JukeboxView';
 import { loadAllSettings, saveSettings } from '../utils/practiceSettings';
-import { countFor as tallyFor, forgetPractice, loadTally, recordPractice } from '../utils/practiceTally';
+import { countFor as tallyFor, forgetPractice, loadTally } from '../utils/practiceTally';
+import { PRACTICE_MINUTES } from '../hooks/usePracticeSession';
 
 const SORT_STORAGE_KEY = 'songSort';
 const VIEW_STORAGE_KEY = 'homeView';
@@ -149,7 +150,18 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
   // Cards to browse by, or the player to put a folder on with
   const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_STORAGE_KEY) || 'cards');
   // How many times each song has been opened to practise
+  // Marks earned in the practice view land while this page is away, so the
+  // tally is read again when the page comes back to the front
   const [tally, setTally] = useState(() => loadTally());
+  useEffect(() => {
+    const refresh = () => setTally(loadTally());
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
   const [isTallyOpen, setIsTallyOpen] = useState(false);
 
   const [draft, setDraft] = useState(emptyDraft);
@@ -378,13 +390,13 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
   const cycleStatus = (song) => setStatus(song, nextStatus(song).id);
 
   /**
-   * Opening a song is the thing being counted, wherever it is opened from.
    * A song you have sat down with is no longer new, so the first opening moves
-   * it on to learning; learned stays something you say yourself.
+   * it on to learning; learned stays something you say yourself. The tally is
+   * not touched here — a mark is earned by staying with the song, not by
+   * opening it, or a browse through a folder would run it up on its own.
    */
   const openSong = (song) => {
     if (!song) return;
-    setTally(recordPractice(song.id));
     if ((song.status || 'new') === 'new') setStatus(song, 'learning');
   };
 
@@ -663,6 +675,7 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
               folderName={folderName}
               isDarkMode={isDarkMode}
               onSongOpened={openSong}
+              onPractised={setTally}
               onOpenPractice={goToPractice}
               onDataChanged={loadData}
               silentCount={visibleSongs.length - playableSongs.length}
@@ -935,7 +948,7 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
         <Dialog.Content maxWidth="560px">
           <Dialog.Title>Practice tally</Dialog.Title>
           <Text as="div" size="2" color="gray" mb="3">
-            One mark for every time a song has been opened to practise, on this device.
+            One mark for every sitting of {PRACTICE_MINUTES} minutes or more with a song, on this device.
           </Text>
 
           {(() => {

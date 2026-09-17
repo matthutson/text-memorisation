@@ -10,6 +10,7 @@ import { boolOr, loadSettings, numberOr, saveSettings } from '../utils/practiceS
 import { hasTiming, positionAt, timeAt, toAnchors, withAnchors } from '../utils/scrollTiming';
 import { transposeChordText, prefersFlats, formatSteps } from '../utils/chords';
 import { track } from '../utils/usage';
+import usePracticeSession from '../hooks/usePracticeSession';
 
 export default function TextMemorisationApp({ initialText = '', textData, onExit, onTextDataUpdate, isDarkMode, onToggleDarkMode }) {
   // How this song was left last time it was practised
@@ -21,6 +22,9 @@ export default function TextMemorisationApp({ initialText = '', textData, onExit
   const saved = stored.screenKind && stored.screenKind !== screenKind
     ? { ...stored, fontSize: undefined, columnWidth: undefined, autoFit: undefined }
     : stored;
+
+  // Five minutes with this song on the screen earns it a mark on the home page
+  usePracticeSession(songId);
 
   const [text, setText] = useState(initialText);
   const [stems, setStems] = useState(textData?.stems || []);

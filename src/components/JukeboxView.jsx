@@ -3,6 +3,7 @@ import { Badge, Box, Button, Flex, IconButton, Text, Tooltip } from '@radix-ui/t
 import SongPlayer from './SongPlayer';
 import StemPlayerWrapper from './StemPlayerWrapper';
 import { track } from '../utils/usage';
+import usePracticeSession from '../hooks/usePracticeSession';
 
 //
 // The player-first view: one song at a time, the whole transport and the mixer,
@@ -39,7 +40,6 @@ const glyphs = {
       <path d="M21 16v5h-5" /><path d="M15 15l6 6" /><path d="M4 4l5 5" />
     </>
   ),
-  list: <><path d="M8 6h13M8 12h13M8 18h13" /><path d="M3 6h.01M3 12h.01M3 18h.01" /></>,
   words: <path d="M4 6h16M4 12h10M4 18h13" />
 };
 
@@ -54,6 +54,7 @@ export default function JukeboxView({
   folderName = 'All songs',
   isDarkMode,
   onSongOpened,
+  onPractised,
   onOpenPractice,
   onDataChanged,
   silentCount = 0
@@ -66,7 +67,6 @@ export default function JukeboxView({
   const [currentId, setCurrentId] = useState(() => ids[0] || null);
   const [isShuffled, setIsShuffled] = useState(false);
   const [order, setOrder] = useState(() => ids);
-  const [isQueueOpen, setIsQueueOpen] = useState(false);
   const [isMixerOpen, setIsMixerOpen] = useState(true);
   // Stems uploaded from inside this view, before the song list has caught up
   const [stemsById, setStemsById] = useState({});
@@ -93,11 +93,13 @@ export default function JukeboxView({
 
   const stems = (current && stemsById[current.id]) || current?.stems || [];
 
-  // Opening a song here is practice just as much as opening its words is
+  // Opening a song moves it off new; the mark itself is earned by staying with it
   useEffect(() => {
     if (current && onSongOpened) onSongOpened(current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentId]);
+
+  usePracticeSession(currentId, onPractised);
 
   const step = useCallback((delta) => {
     if (order.length < 2) return;
@@ -175,11 +177,12 @@ export default function JukeboxView({
         }
         .jukebox-mixer .stems-panel .stem-fader { flex-basis: auto !important; max-width: 320px !important; }
 
-        /* On a phone the song's name has the row to itself and the skips sit
-           under it, where a thumb reaches them */
+        /* On a phone the song's name has the row to itself and the controls sit
+           under it, where a thumb reaches them — as a row of buttons, not
+           spread to the corners of the screen */
         @media (max-width: 640px) {
           .jukebox-head { flex-direction: column; align-items: stretch !important; gap: var(--space-2) !important; }
-          .jukebox-head-controls { justify-content: space-between; }
+          .jukebox-head-controls { justify-content: flex-start; gap: var(--space-2) !important; }
         }
       `}</style>
 
@@ -223,17 +226,6 @@ export default function JukeboxView({
                 <Glyph name="shuffle" />
               </IconButton>
             </Tooltip>
-            <Tooltip content="Up next">
-              <IconButton
-                size="3"
-                variant={isQueueOpen ? 'solid' : 'soft'}
-                color={isQueueOpen ? undefined : 'gray'}
-                onClick={() => setIsQueueOpen(open => !open)}
-                aria-label="Show the queue"
-              >
-                <Glyph name="list" />
-              </IconButton>
-            </Tooltip>
             <Tooltip content="Open the words for this song">
               <IconButton size="3" variant="soft" color="gray" onClick={() => onOpenPractice?.(current)} aria-label="Open the words">
                 <Glyph name="words" />
@@ -270,34 +262,32 @@ export default function JukeboxView({
           </Box>
         </Box>
 
-        {isQueueOpen && (
-          <Box mt="3">
-            <Text as="div" size="1" weight="bold" color="gray" mb="2" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Up next
-            </Text>
-            <Flex direction="column" gap="1">
-              {upNext.length === 0 && <Text size="2" color="gray">Nothing else in this folder.</Text>}
-              {upNext.map(song => (
-                <Flex
-                  key={song.id}
-                  align="center"
-                  justify="between"
-                  px="2"
-                  py="1"
-                  style={{ borderRadius: 'var(--radius-3)', cursor: 'pointer', background: 'var(--gray-a2)' }}
-                  onClick={() => {
-                    wantsPlayRef.current = !!engineRef.current?.isPlaying;
-                    setCurrentId(song.id);
-                    track('jukebox.pick');
-                  }}
-                >
-                  <Text size="2" truncate>{song.title}</Text>
-                  {song.artist && <Text size="1" color="gray" truncate>{song.artist}</Text>}
-                </Flex>
-              ))}
-            </Flex>
-          </Box>
-        )}
+        <Box mt="3">
+          <Text as="div" size="1" weight="bold" color="gray" mb="2" style={{ textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Up next
+          </Text>
+          <Flex direction="column" gap="1">
+            {upNext.length === 0 && <Text size="2" color="gray">Nothing else in this folder.</Text>}
+            {upNext.map(song => (
+              <Flex
+                key={song.id}
+                align="center"
+                justify="between"
+                px="2"
+                py="1"
+                style={{ borderRadius: 'var(--radius-3)', cursor: 'pointer', background: 'var(--gray-a2)' }}
+                onClick={() => {
+                  wantsPlayRef.current = !!engineRef.current?.isPlaying;
+                  setCurrentId(song.id);
+                  track('jukebox.pick');
+                }}
+              >
+                <Text size="2" truncate>{song.title}</Text>
+                {song.artist && <Text size="1" color="gray" truncate>{song.artist}</Text>}
+              </Flex>
+            ))}
+          </Flex>
+        </Box>
 
         {silentCount > 0 && (
           <Text as="div" size="1" color="gray" mt="3">
