@@ -101,7 +101,9 @@ export default class SongAudio {
   on(event, handler) {
     (this.listeners[event] = this.listeners[event] || []).push(handler);
     return () => {
-      this.listeners[event] = this.listeners[event].filter(item => item !== handler);
+      // An engine that has been destroyed has already let its listeners go, so
+      // unsubscribing after the fact is a no-op rather than an error
+      this.listeners[event] = (this.listeners[event] || []).filter(item => item !== handler);
     };
   }
 

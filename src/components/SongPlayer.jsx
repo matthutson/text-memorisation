@@ -21,8 +21,8 @@ const formatTime = (seconds, { signed = false } = {}) => {
 const glyphs = {
   play: <path d="M7 4l13 8-13 8z" fill="currentColor" stroke="none" />,
   pause: <path d="M8 4h3v16H8zM13 4h3v16h-3z" fill="currentColor" stroke="none" />,
-  prevMark: <><path d="M18 5v14l-10-7z" fill="currentColor" stroke="none" /><path d="M6 5v14" /></>,
-  nextMark: <><path d="M6 5v14l10-7z" fill="currentColor" stroke="none" /><path d="M18 5v14" /></>,
+  prevMark: <><path d="M16 4H9a2 2 0 0 0-2 2v15l5.5-4L18 21V6" /><path d="M8 12l-4-3.5L8 5" /></>,
+  nextMark: <><path d="M8 4h7a2 2 0 0 1 2 2v15l-5.5-4L6 21V6" /><path d="M16 12l4-3.5L16 5" /></>,
   back5: <><path d="M11 8l-5 4 5 4z" fill="currentColor" stroke="none" /><path d="M18 8l-5 4 5 4z" fill="currentColor" stroke="none" /></>,
   fwd5: <><path d="M13 8l5 4-5 4z" fill="currentColor" stroke="none" /><path d="M6 8l5 4-5 4z" fill="currentColor" stroke="none" /></>,
   loop: <><path d="M4 9h13a3 3 0 0 1 0 6h-2" /><path d="M7 5L4 9l3 4" /><path d="M20 15H7a3 3 0 0 1 0-6h2" /><path d="M17 19l3-4-3-4" /></>,
@@ -70,7 +70,10 @@ export default function SongPlayer({
   onToggleStemsPanel,
   onEngineReady,
   bpm = 0,
-  meter = 4
+  meter = 4,
+  // The player-first view has no lyrics on screen, so the marks that tie a
+  // moment to a line have nothing to tie themselves to
+  showMarks = true
 }) {
   // How this song was left last time: its speed, key, loop and zoom
   const saved = useMemo(() => loadSettings(songId), [songId]);
@@ -593,9 +596,11 @@ export default function SongPlayer({
           {formatTime(displayTime)}
         </span>
         <div style={{ ...groupStyle, gap: 6, margin: '0 auto' }}>
-          <button style={button(false, { height: 38 })} onClick={() => goToBookmark(previousBookmark(bookmarks, timeRef.current) || bookmarks[0])} title="Previous bookmark">
-            <Glyph name="prevMark" size={18} />
-          </button>
+          {showMarks && (
+            <button style={button(false, { height: 38 })} onClick={() => goToBookmark(previousBookmark(bookmarks, timeRef.current) || bookmarks[0])} title="Previous bookmark">
+              <Glyph name="prevMark" size={18} />
+            </button>
+          )}
           <button style={button(false, { height: 38 })} onClick={() => seek(timeRef.current - 5)} title="Back five seconds">
             <Glyph name="back5" size={18} />
           </button>
@@ -610,9 +615,11 @@ export default function SongPlayer({
           <button style={button(false, { height: 38 })} onClick={() => seek(timeRef.current + 5)} title="Forward five seconds">
             <Glyph name="fwd5" size={18} />
           </button>
-          <button style={button(false, { height: 38 })} onClick={() => goToBookmark(nextBookmark(bookmarks, timeRef.current))} title="Next bookmark">
-            <Glyph name="nextMark" size={18} />
-          </button>
+          {showMarks && (
+            <button style={button(false, { height: 38 })} onClick={() => goToBookmark(nextBookmark(bookmarks, timeRef.current))} title="Next bookmark">
+              <Glyph name="nextMark" size={18} />
+            </button>
+          )}
         </div>
         <span ref={remainingLabelRef} style={{ fontSize: 13, fontVariantNumeric: 'tabular-nums', color: colors.dim, minWidth: 56, textAlign: 'right' }}>
           {formatTime(duration ? duration - displayTime : 0, { signed: true })}
@@ -686,6 +693,7 @@ export default function SongPlayer({
           </button>
         </Section>
 
+        {showMarks && (
         <Section caption="Marks">
           <button style={button()} onClick={() => { onAddBookmark?.(timeRef.current); track('marks.add'); }} title="Drop a bookmark at the playhead">
             <Glyph name="addMark" />
@@ -708,6 +716,7 @@ export default function SongPlayer({
             title="Delete every bookmark on this song"
           ><Glyph name="trash" /></button>
         </Section>
+        )}
 
         <Section caption="Tracks & Stems">
           <button style={button(isStemsPanelOpen)} onClick={onToggleStemsPanel} title="Add, split and mix the backing tracks">

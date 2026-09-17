@@ -33,12 +33,18 @@ import {
   isMissingColumn
 } from '../utils/storage';
 import QuillEditor from './QuillEditor';
+import TallyMarks from './TallyMarks';
+import JukeboxView from './JukeboxView';
 import { loadAllSettings, saveSettings } from '../utils/practiceSettings';
+import { countFor as tallyFor, forgetPractice, loadTally } from '../utils/practiceTally';
+import { PRACTICE_MINUTES } from '../hooks/usePracticeSession';
 
 const SORT_STORAGE_KEY = 'songSort';
+const VIEW_STORAGE_KEY = 'homeView';
 const SORTS = {
   recent: { label: 'Recently added', compare: (a, b) => b.createdAt - a.createdAt },
-  name: { label: 'Name (A–Z)', compare: (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) }
+  name: { label: 'Name (A–Z)', compare: (a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }) },
+  practised: { label: 'Most practised', compare: (a, b, tally) => tallyFor(tally, b.id) - tallyFor(tally, a.id) }
 };
 
 const icons = {
@@ -66,6 +72,26 @@ const icons = {
   menu: (
     <>
       <line x1="3" y1="6" x2="21" y2="6" /><line x1="3" y1="12" x2="21" y2="12" /><line x1="3" y1="18" x2="21" y2="18" />
+    </>
+  ),
+  // The practice tally: bars of different heights, read at a glance
+  chart: (
+    <>
+      <line x1="4" y1="20" x2="4" y2="12" /><line x1="10" y1="20" x2="10" y2="5" />
+      <line x1="16" y1="20" x2="16" y2="9" /><line x1="21" y1="20" x2="3" y2="20" />
+    </>
+  ),
+  // Player-first view: a play triangle inside its bezel
+  disc: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M10 9l6 3-6 3z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  cards: (
+    <>
+      <rect x="3" y="4" width="7" height="7" rx="1.5" /><rect x="14" y="4" width="7" height="7" rx="1.5" />
+      <rect x="3" y="13" width="7" height="7" rx="1.5" /><rect x="14" y="13" width="7" height="7" rx="1.5" />
     </>
   )
 };
@@ -121,6 +147,22 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState(() => localStorage.getItem(SORT_STORAGE_KEY) || 'recent');
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // Cards to browse by, or the player to put a folder on with
+  const [viewMode, setViewMode] = useState(() => localStorage.getItem(VIEW_STORAGE_KEY) || 'cards');
+  // How many times each song has been opened to practise
+  // Marks earned in the practice view land while this page is away, so the
+  // tally is read again when the page comes back to the front
+  const [tally, setTally] = useState(() => loadTally());
+  useEffect(() => {
+    const refresh = () => setTally(loadTally());
+    window.addEventListener('focus', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.removeEventListener('focus', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, []);
+  const [isTallyOpen, setIsTallyOpen] = useState(false);
 
   const [draft, setDraft] = useState(emptyDraft);
   const [editingSong, setEditingSong] = useState(null);
@@ -174,6 +216,12 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
     localStorage.setItem(SORT_STORAGE_KEY, key);
   };
 
+  const changeView = (mode) => {
+    setViewMode(mode);
+    localStorage.setItem(VIEW_STORAGE_KEY, mode);
+    track('home.view', mode);
+  };
+
   const tagsById = useMemo(
     () => Object.fromEntries(tags.map(tag => [tag.id, tag])),
     [tags]
@@ -199,8 +247,23 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
       return `${song.title} ${song.artist || ''} ${tagNames}`.toLowerCase().includes(query);
     };
 
-    return songs.filter(song => matchesTag(song) && matchesQuery(song)).sort(SORTS[sortKey].compare);
-  }, [songs, search, selectedTagId, sortKey, tagsById]);
+    return songs
+      .filter(song => matchesTag(song) && matchesQuery(song))
+      .sort((a, b) => SORTS[sortKey].compare(a, b, tally));
+  }, [songs, search, selectedTagId, sortKey, tagsById, tally]);
+
+  // The player can only play what has a backing track; the rest are counted
+  // at the foot of the queue rather than sitting in it as dead ends
+  const playableSongs = useMemo(
+    () => visibleSongs.filter(song => (song.stems || []).length > 0),
+    [visibleSongs]
+  );
+
+  const folderName = selectedTagId === 'all'
+    ? 'All songs'
+    : selectedTagId === 'untagged'
+      ? 'Untagged'
+      : tagsById[selectedTagId]?.name || 'Songs';
 
   // ---- Songs ----
 
@@ -282,6 +345,8 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
   const removeSong = async (song) => {
     if (!confirm(`Delete "${song.title}"?`)) return;
     await deleteText(song.id);
+    forgetPractice(song.id);
+    setTally(loadTally());
     await loadData();
   };
 
@@ -302,10 +367,10 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
     await withTagErrors(() => setTextTags(song.id, next));
   };
 
-  /** Step a song on: new, then learning, then learned, then round again */
-  const cycleStatus = async (song) => {
+  /** Put a song at a given status, wherever the status can be kept */
+  const setStatus = async (song, next) => {
     const previous = song.status || 'new';
-    const next = nextStatus(song).id;
+    if (next === previous) return;
     setSongs(list => list.map(item => item.id === song.id ? { ...item, status: next } : item));
     try {
       await updateText(song.id, { status: next });
@@ -319,6 +384,33 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
       setSongs(list => list.map(item => item.id === song.id ? { ...item, status: previous } : item));
       alert('Could not save the status.');
     }
+  };
+
+  /** Step a song on: new, then learning, then learned, then round again */
+  const cycleStatus = (song) => setStatus(song, nextStatus(song).id);
+
+  /**
+   * A song you have sat down with is no longer new, so the first opening moves
+   * it on to learning; learned stays something you say yourself. The tally is
+   * not touched here — a mark is earned by staying with the song, not by
+   * opening it, or a browse through a folder would run it up on its own.
+   */
+  const openSong = (song) => {
+    if (!song) return;
+    if ((song.status || 'new') === 'new') setStatus(song, 'learning');
+  };
+
+  const practiseSong = (song) => {
+    track('song.practice');
+    openSong(song);
+    onPracticeText(song);
+  };
+
+  // From the player, the song has already been counted as opened, so going to
+  // its words is a change of view rather than a second practice
+  const goToPractice = (song) => {
+    track('song.practice', 'from-player');
+    onPracticeText(song);
   };
 
   // ---- Tags ----
@@ -425,6 +517,26 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
           </Flex>
         );
       })}
+
+      <Separator size="4" my="2" />
+
+      <Flex
+        align="center"
+        justify="between"
+        gap="1"
+        px="2"
+        py="1"
+        style={{ borderRadius: 'var(--radius-3)', cursor: 'pointer' }}
+        onClick={() => { setIsTallyOpen(true); setIsSidebarOpen(false); track('tally.open', 'sidebar'); }}
+      >
+        <Flex align="center" gap="2">
+          <Box style={{ display: 'flex', color: 'var(--gray-10)' }}><Icon name="chart" size={15} /></Box>
+          <Text size="2">Practice tally</Text>
+        </Flex>
+        <Text size="1" color="gray" style={{ fontVariantNumeric: 'tabular-nums' }}>
+          {Object.values(tally).reduce((sum, entry) => sum + (entry?.count || 0), 0)}
+        </Text>
+      </Flex>
     </Flex>
   );
 
@@ -455,7 +567,7 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
             The Repetoire
           </Heading>
 
-          <Box style={{ flex: 1, maxWidth: 420 }}>
+          <Box style={{ flex: 1, minWidth: 0, maxWidth: 420 }}>
             <TextField.Root
               size="2"
               placeholder="Search songs, artists and tags"
@@ -485,6 +597,38 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
               </Select.Content>
             </Select.Root>
           </Box>
+
+          {/* Cards to browse by, or the player to put a folder on with */}
+          <Flex gap="1" className="home-view-switch">
+            <Tooltip content="Song cards">
+              <IconButton
+                className={viewMode === 'cards' ? 'is-current-view' : undefined}
+                variant={viewMode === 'cards' ? 'solid' : 'soft'}
+                color={viewMode === 'cards' ? undefined : 'gray'}
+                onClick={() => changeView('cards')}
+                aria-label="Show the song cards"
+              >
+                <Icon name="cards" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip content="Player">
+              <IconButton
+                className={viewMode === 'player' ? 'is-current-view' : undefined}
+                variant={viewMode === 'player' ? 'solid' : 'soft'}
+                color={viewMode === 'player' ? undefined : 'gray'}
+                onClick={() => changeView('player')}
+                aria-label="Show the player"
+              >
+                <Icon name="disc" />
+              </IconButton>
+            </Tooltip>
+          </Flex>
+
+          <Tooltip content="Practice tally">
+            <IconButton className="home-tally-button" variant="soft" color="gray" onClick={() => { setIsTallyOpen(true); track('tally.open'); }} aria-label="Practice tally">
+              <Icon name="chart" />
+            </IconButton>
+          </Tooltip>
 
           <Tooltip content={isDarkMode ? 'Light mode' : 'Dark mode'}>
             <IconButton variant="soft" color="gray" onClick={() => { onToggleDarkMode(); track('theme.toggle'); }} aria-label="Toggle theme">
@@ -523,8 +667,21 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
           {sidebar}
         </Box>
 
-        {/* Songs */}
-        <Box p={{ initial: '3', md: '5' }} style={{ flex: 1, minWidth: 0 }}>
+        {/* Songs: cards to browse by, or the player to put a folder on with */}
+        <Box p={viewMode === 'player' ? '0' : { initial: '3', md: '5' }} style={{ flex: 1, minWidth: 0 }}>
+          {viewMode === 'player' ? (
+            <JukeboxView
+              songs={playableSongs}
+              folderName={folderName}
+              isDarkMode={isDarkMode}
+              onSongOpened={openSong}
+              onPractised={setTally}
+              onOpenPractice={goToPractice}
+              onDataChanged={loadData}
+              silentCount={visibleSongs.length - playableSongs.length}
+            />
+          ) : (
+          <>
           <Flex align="center" justify="between" mb="4" gap="3" wrap="wrap">
             <Heading size="3" color="gray" weight="medium">
               {selectedTagId === 'all'
@@ -626,17 +783,21 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
                         </Text>
                       </Flex>
 
-                      <Box
-                        title={(song.stems || []).length
-                          ? `${(song.stems || []).length} backing tracks`
-                          : 'No backing tracks yet'}
-                        style={{
-                          display: 'flex',
-                          color: (song.stems || []).length ? 'var(--accent-9)' : 'var(--gray-a5)'
-                        }}
-                      >
-                        <Icon name="waveform" size={16} />
-                      </Box>
+                      <Flex align="center" gap="2">
+                        {/* The gate marks say at a glance how often this one gets reached for */}
+                        <TallyMarks count={tallyFor(tally, song.id)} color="var(--gray-11)" />
+                        <Box
+                          title={(song.stems || []).length
+                            ? `${(song.stems || []).length} backing tracks`
+                            : 'No backing tracks yet'}
+                          style={{
+                            display: 'flex',
+                            color: (song.stems || []).length ? 'var(--accent-9)' : 'var(--gray-a5)'
+                          }}
+                        >
+                          <Icon name="waveform" size={16} />
+                        </Box>
+                      </Flex>
                     </Flex>
 
                     {(song.ultimateGuitarUrl || song.soundsliceUrl) && (
@@ -654,11 +815,13 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
                       </Flex>
                     )}
 
-                    <Button onClick={() => { track('song.practice'); onPracticeText(song); }}>Practice</Button>
+                    <Button onClick={() => practiseSong(song)}>Practice</Button>
                   </Flex>
                 </Card>
               ))}
             </Grid>
+          )}
+          </>
           )}
         </Box>
       </Flex>
@@ -780,6 +943,63 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
         </Dialog.Content>
       </Dialog.Root>
 
+      {/* The practice tally, all in one place */}
+      <Dialog.Root open={isTallyOpen} onOpenChange={setIsTallyOpen}>
+        <Dialog.Content maxWidth="560px">
+          <Dialog.Title>Practice tally</Dialog.Title>
+          <Text as="div" size="2" color="gray" mb="3">
+            One mark for every sitting of {PRACTICE_MINUTES} minutes or more with a song, on this device.
+          </Text>
+
+          {(() => {
+            const counted = songs
+              .map(song => ({ song, count: tallyFor(tally, song.id) }))
+              .filter(row => row.count > 0)
+              .sort((a, b) => b.count - a.count);
+            const total = counted.reduce((sum, row) => sum + row.count, 0);
+
+            if (counted.length === 0) {
+              return <Text size="2" color="gray">Nothing practised yet. The marks start with the first song you open.</Text>;
+            }
+
+            return (
+              <Box>
+                <Flex direction="column" gap="2" style={{ maxHeight: '50vh', overflowY: 'auto' }}>
+                  {counted.map(({ song, count }) => (
+                    <Flex key={song.id} align="center" justify="between" gap="3">
+                      <Box style={{ minWidth: 0, flex: '0 0 40%' }}>
+                        <Text as="div" size="2" truncate>{song.title}</Text>
+                        {song.artist && <Text as="div" size="1" color="gray" truncate>{song.artist}</Text>}
+                      </Box>
+                      <Box style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+                        <TallyMarks count={count} max={6} color="var(--accent-11)" />
+                      </Box>
+                      <Text size="2" weight="bold" style={{ fontVariantNumeric: 'tabular-nums', minWidth: 28, textAlign: 'right' }}>
+                        {count}
+                      </Text>
+                    </Flex>
+                  ))}
+                </Flex>
+
+                <Separator size="4" my="3" />
+                <Flex justify="between">
+                  <Text size="2" color="gray">
+                    {counted.length} {counted.length === 1 ? 'song' : 'songs'} practised
+                  </Text>
+                  <Text size="2" weight="bold" style={{ fontVariantNumeric: 'tabular-nums' }}>{total} in all</Text>
+                </Flex>
+              </Box>
+            );
+          })()}
+
+          <Flex justify="end" mt="4">
+            <Dialog.Close>
+              <Button variant="soft" color="gray">Close</Button>
+            </Dialog.Close>
+          </Flex>
+        </Dialog.Content>
+      </Dialog.Root>
+
       {/* Tag dialog */}
       <Dialog.Root open={!!tagDialog} onOpenChange={(open) => { if (!open) setTagDialog(null); }}>
         <Dialog.Content maxWidth="400px">
@@ -825,6 +1045,12 @@ export default function HomePage({ onPracticeText, selectedTagId = 'all', onSele
         @media (max-width: 640px) {
           .home-sort { display: none; }
           .home-new-label { display: none; }
+          /* The bar has room for the view switch or the tally, not both; the
+             tally is in the drawer, which is a tap away either way. */
+          .home-tally-button { display: none !important; }
+          /* One button, and it is the way to the other view: a phone bar has
+             no room to show you the view you are already looking at */
+          .home-view-switch .is-current-view { display: none !important; }
         }
       `}</style>
     </Box>
