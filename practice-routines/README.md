@@ -1,6 +1,6 @@
 # Rudiment practice routines (MusicXML for Soundslice)
 
-39 MusicXML files for piano, guitar, 5-string banjo (Scruggs and clawhammer sets) and fiddle.
+51 MusicXML files for piano, guitar, 5-string banjo (Scruggs and clawhammer sets) and fiddle.
 Every file is one routine split into labelled sections: each section starts with a
 rehearsal mark and ends with a double barline, so you can loop one section or play the
 file straight through.
@@ -43,6 +43,8 @@ i, ii°, III, iv, v, VI, VII).
 | 06 triad arpeggios | major and minor, same three-part layout |
 | 07 seventh arpeggios | maj7, dominant 7, minor 7, same layout |
 | 08 rhythm workout | C major in 14 rhythms |
+| 09 major I–IV–V, 10 minor i–iv–V | triads on each set of three strings moving by closest inversion up the neck and back (as chords, then broken), then continuous arpeggio lines through the changes in each CAGED position and in 12 keys |
+| 11 major ii–V–I, 12 minor ii–V–i | the same with triads, plus 4-note 7th chords on strings 4-3-2-1 and 5-4-3-2, and 7th arpeggio lines |
 
 Each position runs root → top note → bottom note → root, so you learn the whole shape and
 always start and finish on the tonic.
@@ -57,6 +59,7 @@ Open G tuning (gDGBD). The letters under the notes are right-hand instructions.
 | 07 triad rolls up the neck, 12 keys | 07 triads with bum-ditty up the neck, 12 keys |
 | 08 seventh-chord rolls, 12 keys | 08 seventh chords with bum-ditty, 12 keys |
 | 09 rhythm workout | 09 rhythm workout |
+| 10 to 13 major and minor I–IV–V and ii–V–I: vamping, then rolls, through the three chord shapes up the neck and back; single-string arpeggio lines in position and in 12 keys | 10 to 13 the same progressions with bum-ditty, drop-thumb arpeggios, and melodic clawhammer arpeggio lines |
 
 Legend: **T** thumb, **I** index, **M** middle, **pinch** thumb and fingers together,
 **B** brush, **H** hammer-on, **P** pull-off, **AH** alternate-string hammer-on (left hand
@@ -66,6 +69,12 @@ open string).
 The three positions are built round the F shape, D shape and barre shape, which do the job
 on banjo that CAGED does on guitar. In the chord files the 5th-string drone is only used
 when G belongs to the chord; otherwise the roll stays on strings 1 to 4.
+
+### How the progression files work
+- **Closest inversions:** each pass plays the whole progression in one area of the neck, with every chord in the voicing nearest to the tonic chord. The next pass starts from the next inversion up, and the exercise climbs the neck and comes back.
+- **Arpeggio lines:** one bar of quavers per chord. At each chord change the line carries on in the same direction to the nearest note of the new chord, instead of jumping back to the root.
+- **Minor keys** use a major V chord (E in A minor, B in E minor), which is the usual minor I–IV–V and ii–V–i. The ii chord is diminished (m7♭5 as a 4-note chord).
+- Chord names are printed above the stave; the banjo files also show the fret shape for each chord.
 
 ### fiddle/
 | File | Contents |

@@ -226,7 +226,7 @@ class Score:
     def note_xml(self, e, staff, voice, beam, accstate, keyalter, nstaves, tabstaff):
         ty, dots, tm = TYPE_OF[e["d"]]
         x = []
-        if e.get("words"):
+        if e.get("words") and not tabstaff:
             x.append('<direction placement="above"><direction-type><words font-style="italic">%s</words>'
                      '</direction-type>%s</direction>' % (escape(e["words"]), "<staff>%d</staff>" % staff if nstaves > 1 else ""))
         common = "<duration>%d</duration><voice>%d</voice><type>%s</type>%s" % (e["d"], voice, ty, "<dot/>" * dots)
@@ -1140,6 +1140,254 @@ def fiddle_files():
     sc.write("fiddle", "fiddle-03-slur-patterns")
 
 
+# ---------------------------------------------------------------- chord progressions (I-IV-V, ii-V-I)
+from itertools import product
+
+PROGS = {"145": [0, 3, 4, 0], "251": [1, 4, 0, 0]}
+ROMAN = {("145", False): "I–IV–V", ("145", True): "i–iv–V",
+         ("251", False): "ii–V–I", ("251", True): "ii–V–i"}
+QUAL = {(4, 7): "", (3, 7): "m", (3, 6): "°", (4, 7, 11): "maj7", (4, 7, 10): "7",
+        (3, 7, 10): "m7", (3, 6, 10): "m7♭5"}
+
+
+def prog_slots(key, minor, prog, size):
+    """Chords of the progression: list of dict(name, pcs, root) plus the pitch-class spelling map.
+    Minor keys use the natural minor with a major V (raised 7th)."""
+    h = hepta(tone(key), NATMIN if minor else MAJ)
+    pm = {pc(t): t for t in h}
+    lead = (h[6][0], h[6][1] + 1)
+    if minor:
+        pm[pc(lead)] = lead
+    out = []
+    for deg in PROGS[prog]:
+        tones = [h[(deg + 2 * i) % 7] for i in range(size)]
+        if minor and deg == 4:
+            tones[1] = lead
+        r = pc(tones[0])
+        name = LET[tones[0][0]] + {1: "♯", -1: "♭", 0: ""}[tones[0][1]] + QUAL[tuple((pc(t) - r) % 12 for t in tones[1:])]
+        out.append(dict(name=name, pcs=frozenset(pc(t) for t in tones), root=r))
+    return out, pm
+
+
+_vcache = {}
+
+
+def string_voicings(inst, strings, pcs, maxfret):
+    """Closest-fingered voicing for each chord tone on the top string, low to high."""
+    k = (inst["kind"], strings, pcs, maxfret)
+    if k in _vcache:
+        return _vcache[k]
+    opens, res = inst["open"], []
+    for top in range(maxfret + 1):
+        if (opens[strings[-1]] + top) % 12 not in pcs:
+            continue
+        best = None
+        for combo in product(range(max(0, top - 4), top + 5), repeat=len(strings) - 1):
+            fr = combo + (top,)
+            if {(opens[s] + f) % 12 for s, f in zip(strings, fr)} != set(pcs):
+                continue
+            span = max(fr) - min(fr)
+            if span <= 4 and (best is None or (span, sum(fr)) < best[0]):
+                best = ((span, sum(fr)), dict(zip(strings, fr)))
+        if best:
+            res.append(best[1])
+    _vcache[k] = res
+    return res
+
+
+def prog_rows(inst, strings, slots):
+    """For each tonic voicing up the neck: the whole progression in the closest voicings."""
+    tonic = slots[-1]["pcs"]
+    rows = []
+    for tv in string_voicings(inst, strings, tonic, 15)[:4]:
+        row = []
+        for sl in slots:
+            if sl["pcs"] == tonic:
+                row.append(tv)
+            else:
+                row.append(min(string_voicings(inst, strings, sl["pcs"], 19),
+                               key=lambda v: sum(abs(v[x] - tv[x]) for x in strings)))
+        rows.append(row)
+    return rows + rows[-2::-1]
+
+
+def vnotes(inst, v, pm, strings=None):
+    return [dict(p=spell(inst["open"][s] + v[s], pm), s=s, f=v[s]) for s in (strings or sorted(v, reverse=True))]
+
+
+def prog_pool(inst, shape_idx, key, minor):
+    if not minor:
+        return position(inst, shape_idx, "major", key)
+    label, a = position(inst, shape_idx, "natmin", key)
+    return label, sorted(set(a) | set(position(inst, shape_idx, "harmin", key)[1]))
+
+
+def arp_line(pool, slots, tonic_pc):
+    """One bar of quavers per chord, moving to the nearest chord tone in the direction of travel."""
+    cur, d, bars = None, 1, []
+    for sl in slots:
+        tones = [n for n in pool if n[0] % 12 in sl["pcs"]]
+        if cur is None:
+            cur = next(n for n in tones if n[0] % 12 == sl["root"])
+        else:
+            ups, downs = [n for n in tones if n[0] > cur[0]], [n for n in tones if n[0] < cur[0]]
+            if (d == 1 and not ups) or (d == -1 and not downs):
+                d = -d
+            cur = ups[0] if d == 1 else downs[-1]
+        bar = [cur]
+        for _ in range(7):
+            i = tones.index(cur)
+            if not 0 <= i + d < len(tones):
+                d = -d
+            cur = tones[i + d]
+            bar.append(cur)
+        bars.append(bar)
+    roots = [n for n in pool if n[0] % 12 == tonic_pc and n != cur]
+    return bars, min(roots or [cur], key=lambda n: abs(n[0] - cur[0]))
+
+
+def add_arp_line_sections(sc, inst, minor, prog, size, ann, home):
+    keys = MIN_KEYS if minor else MAJ_KEYS
+    rom = ROMAN[(prog, minor)]
+    kind = "triad" if size == 3 else "7th"
+
+    def build(key, shape_idx):
+        slots, pm = prog_slots(key, minor, prog, size)
+        label, pool = prog_pool(inst, shape_idx, key, minor)
+        bars, last = arp_line(pool, slots, pc(tone(key)))
+        evs = []
+        for sl, bar in zip(slots, bars):
+            part = fret_events(bar, pm)
+            part[0]["words"] = sl["name"]
+            evs += part
+        evs += [dict(fret_events([last], pm)[0], d=48)]
+        return label, ann(evs)
+
+    order = sorted(range(len(inst["shapes"])), key=lambda i: min(n[2] for n in prog_pool(inst, i, home, minor)[1]))
+    for i in order:
+        label, evs = build(home, i)
+        sc.add("%s %s arpeggios in position – %s" % (rom, kind, label), dict(keys)[home], evs)
+    for key, f in keys:
+        label, evs = build(key, best_shape(inst, "natmin" if minor else "major", key))
+        sc.add("12 keys: %s%s %s – %s" % (pretty(key), "m" if minor else "", rom, label), f, evs)
+
+
+def prog_title(inst, minor, prog, home):
+    return "%s %s %s" % (pretty(home), "minor" if minor else "major", ROMAN[(prog, minor)])
+
+
+def guitar_prog_file(prog, minor, idx):
+    home = GUITAR["home"][minor]
+    f = dict(MIN_KEYS if minor else MAJ_KEYS)[home]
+    head = prog_title(GUITAR, minor, prog, home)
+    sc = fretted_score(GUITAR, "Guitar – %s: triads and arpeggios up and down the neck" % head, tempo=66)
+    slots, pm = prog_slots(home, minor, prog, 3)
+    sets = [(3, 2, 1), (4, 3, 2), (5, 4, 3), (6, 5, 4)]
+    for strings in sets:
+        evs = []
+        for row in prog_rows(GUITAR, strings, slots):
+            k = 0
+            while k < len(row):
+                d = 24
+                if k + 1 < len(row) and slots[k + 1]["pcs"] == slots[k]["pcs"]:
+                    d = 48
+                evs.append(CH(vnotes(GUITAR, row[k], pm), d, words=slots[k]["name"]))
+                k += 2 if d == 48 else 1
+        sc.add("%s – triads on strings %d-%d-%d, closest inversions, up the neck and back" % ((head,) + strings), f, evs)
+    for strings in sets:
+        evs = []
+        rows = prog_rows(GUITAR, strings, slots)
+        for row in rows:
+            for sl, v in zip(slots, row):
+                lo, mid, hi = vnotes(GUITAR, v, pm)
+                part = [dict(d=6, notes=[n]) for n in (lo, mid, hi, mid)]
+                part[0]["words"] = sl["name"]
+                evs += part
+        evs.append(CH(vnotes(GUITAR, rows[-1][-1], pm), 48))
+        sc.add("%s – broken triads on strings %d-%d-%d, up the neck and back" % ((head,) + strings), f, evs)
+    size = 3
+    if prog == "251":
+        size = 4
+        slots7, pm7 = prog_slots(home, minor, prog, 4)
+        for strings in [(4, 3, 2, 1), (5, 4, 3, 2)]:
+            evs = []
+            for row in prog_rows(GUITAR, strings, slots7):
+                evs += [CH(vnotes(GUITAR, row[0], pm7), 24, words=slots7[0]["name"]),
+                        CH(vnotes(GUITAR, row[1], pm7), 24, words=slots7[1]["name"]),
+                        CH(vnotes(GUITAR, row[2], pm7), 48, words=slots7[2]["name"])]
+            sc.add("%s – 7th chords on strings %d-%d-%d-%d, closest inversions, up the neck and back" % ((head,) + strings), f, evs)
+    add_arp_line_sections(sc, GUITAR, minor, prog, size, ann_none, home)
+    sc.write("guitar", "guitar-%02d-%s-%s" % (idx, "minor" if minor else "major", "1-4-5" if prog == "145" else "2-5-1"))
+
+
+def banjo_prog_file(style, prog, minor, idx):
+    home = BANJO["home"][minor]
+    f = dict(MIN_KEYS if minor else MAJ_KEYS)[home]
+    head = prog_title(BANJO, minor, prog, home)
+    sc = fretted_score(BANJO, "Banjo (%s) – %s: chords and arpeggios up and down the neck" % (style, head), tempo=66)
+    S4 = (4, 3, 2, 1)
+
+    def one(v, s, pm):
+        return [vnote(v, s, pm)]
+
+    def vamp(v, pm, drone):
+        return [dict(d=12, notes=one(v, 4, pm), lyr="T"), dict(d=12, notes=one(v, 2, pm) + one(v, 1, pm), lyr="IM", stac=True),
+                dict(d=12, notes=one(v, 3, pm), lyr="T"), dict(d=12, notes=one(v, 2, pm) + one(v, 1, pm), lyr="IM", stac=True)]
+
+    def roll(v, pm, drone):
+        strings = [3, 2, 5, 1, 4, 2, 5, 1] if drone else [3, 2, 4, 1, 3, 2, 4, 1]
+        return [dict(d=6, notes=one(v, s, pm), lyr=fg) for s, fg in zip(strings, "TITMTITM")]
+
+    def bumditty(v, pm, drone):
+        out = []
+        for bum in (3, 4):
+            out += [dict(d=12, notes=one(v, bum, pm), lyr="I"), dict(d=6, notes=one(v, 2, pm) + one(v, 1, pm), lyr="B"),
+                    dict(d=6, notes=one(v, 5 if drone else 2, pm), lyr="T")]
+        return out
+
+    def dropthumb(v, pm, drone):
+        out = []
+        for a, b in ((1, 2), (2, 3), (3, 4), (2, 3)):
+            out += [dict(d=6, notes=one(v, a, pm), lyr="I"), dict(d=6, notes=one(v, b, pm), lyr="T")]
+        return out
+
+    if style == "Scruggs":
+        plan = [(3, vamp, "vamping triads (thumb, pinch)"), (3, roll, "triad rolls")]
+        if prog == "251":
+            plan.append((4, roll, "7th-chord rolls"))
+    else:
+        plan = [(3, bumditty, "triads with bum-ditty"), (3, dropthumb, "triads as drop-thumb arpeggios")]
+        if prog == "251":
+            plan.append((4, bumditty, "7th chords with bum-ditty"))
+    for size, fn, what in plan:
+        slots, pm = prog_slots(home, minor, prog, size)
+        rows = prog_rows(BANJO, S4, slots)
+        evs = []
+        for row in rows:
+            for sl, v in zip(slots, row):
+                bar = fn(v, pm, 7 in sl["pcs"])
+                bar[0]["words"] = "%s  %s" % (sl["name"], "-".join(str(v[s]) for s in S4))
+                evs += bar
+        last = rows[-1][-1]
+        evs.append(dict(d=48, notes=[vnote(last, s, pm) for s in ((3, 2, 1) if style == "Scruggs" else S4)],
+                        lyr="pinch" if style == "Scruggs" else "B"))
+        sc.add("%s – %s, up the neck and back" % (head, what), f, evs)
+    add_arp_line_sections(sc, BANJO, minor, prog, 4 if prog == "251" else 3,
+                          ann_scruggs if style == "Scruggs" else ann_claw, home)
+    sc.write("banjo-" + style.lower(), "banjo-%s-%02d-%s-%s" % (style.lower(), idx, "minor" if minor else "major",
+                                                                "1-4-5" if prog == "145" else "2-5-1"))
+
+
+def progression_files():
+    combos = [("145", False), ("145", True), ("251", False), ("251", True)]
+    for k, (prog, minor) in enumerate(combos):
+        guitar_prog_file(prog, minor, 9 + k)
+    for style in ("Scruggs", "Clawhammer"):
+        for k, (prog, minor) in enumerate(combos):
+            banjo_prog_file(style, prog, minor, 10 + k)
+
+
+
 # ---------------------------------------------------------------- main
 def main():
     for i, typ in enumerate(("major", "natmin", "harmin", "majpent", "minpent"), 1):
@@ -1153,6 +1401,7 @@ def main():
     scruggs_files()
     clawhammer_files()
     fiddle_files()
+    progression_files()
 
 
 if __name__ == "__main__":
