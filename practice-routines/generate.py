@@ -573,9 +573,9 @@ def position(inst, shape_idx, typ, key):
         nm = inst["minor_names"][name] if T["minor"] else inst["dom_names"][name] if T.get("dom") else name
         label = "%s shape" % nm
     else:
-        label = "%s shape" % name if not T["minor"] and not T.get("dom") else "position %d" % (shape_idx + 1)
+        label = "%s shape" % name if not T["minor"] and not T.get("dom") else None
     where = "open position" if min(frs) == 0 else "frets %d–%d" % (min(frs), max(frs))
-    return "%s, %s" % (label, where), notes
+    return ("%s, %s" % (label, where) if label else where), notes
 
 
 def fret_events(notes, pcmap):
