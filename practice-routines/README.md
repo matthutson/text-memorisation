@@ -13,12 +13,10 @@ All files are produced by `generate.py` (Python 3, no dependencies). Re-run it t
 2. To loop a section, drag across its bars (from one rehearsal mark to the next double bar).
 3. Use the speed control rather than editing tempos. The written tempos are deliberately slow.
 
-Guitar and banjo files carry the tab as string and fret numbers on each note, plus the
-tuning, in a single staff. Soundslice should show that as notation with tab. I could not
-test the import inside Soundslice from here, so if a file comes in as tab only, or without
-tab, rebuild with a separate linked tab staff and upload again:
-
-    python3 practice-routines/generate.py --tab-staff
+Guitar and banjo files have two linked staves: standard notation on top and tablature
+underneath, with the tuning included (gDGBD for banjo). Right-hand letters, chord names and
+accents are attached to the notation staff. To build single-staff files instead, run
+`python3 practice-routines/generate.py --no-tab-staff`.
 
 ## What is in each folder
 

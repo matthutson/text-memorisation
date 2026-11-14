@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Generate rudiment practice routines as MusicXML (for Soundslice or any notation app).
 
-    python3 practice-routines/generate.py            # tab instruments: one staff + string/fret data
-    python3 practice-routines/generate.py --tab-staff  # also write a separate linked TAB staff
+    python3 practice-routines/generate.py                 # guitar/banjo: notation staff + linked TAB staff
+    python3 practice-routines/generate.py --no-tab-staff  # single staff carrying string/fret data only
 
 Every file is split into sections. Each section starts with a rehearsal mark and
 ends with a double barline, so a section can be looped or the file played through.
@@ -14,7 +14,7 @@ import sys
 from xml.sax.saxutils import escape
 
 DIV = 12  # divisions per crotchet
-TAB_STAFF = "--tab-staff" in sys.argv
+TAB_STAFF = "--no-tab-staff" not in sys.argv
 OUT = os.path.dirname(os.path.abspath(__file__))
 
 LET = "CDEFGAB"
@@ -251,9 +251,9 @@ class Score:
                     nota.append('<tuplet type="%s" number="1"%s/>' % (e["tup"], ' bracket="yes"' if e["tup"] == "start" else ""))
                 if e.get("bow"):
                     tech.append("<%s-bow/>" % e["bow"])
-                if e.get("acc"):
+                if e.get("acc") and not tabstaff:
                     art.append("<accent/>")
-                if e.get("stac"):
+                if e.get("stac") and not tabstaff:
                     art.append("<staccato/>")
             if "fing" in n and not tabstaff:
                 tech.append("<fingering>%s</fingering>" % n["fing"])
